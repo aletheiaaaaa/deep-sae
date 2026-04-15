@@ -35,13 +35,14 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
 
 
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
-    model = LanguageModel("google/gemma-3-1b-pt", device_map="auto", dispatch=True)
+    model = LanguageModel("google/gemma-3-1b-pt", device_map=device, dispatch=True)
     dataset = load_dataset(
         path=train_cfg.dataset,
         split="train",
         streaming=True,
     )
     tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
+    tokenizer.pad_token = tokenizer.eos_token
 
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
@@ -56,10 +57,14 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
             padding=True,
             truncation=True,
             max_length=128,
-        ).to(model.device)
+            padding_side="right",
+        )
+
+        input_ids = tokens["input_ids"].to(device)
+        attention_mask = tokens["attention_mask"].to(device)
 
         with model.trace() as tracer:
-            with tracer.invoke(**tokens):
+            with tracer.invoke(input_ids=input_ids, attention_mask=attention_mask):
                 hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
