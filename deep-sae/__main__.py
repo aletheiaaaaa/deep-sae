@@ -10,10 +10,9 @@ def make_parser() -> argparse.ArgumentParser:
         description="Trains and evaluates a deep vs shallow SAE on real-world transformers",
     )
 
-    parser.add_argument("--cache_model", default="google/gemma-3-1b-pt", type=str)
-    parser.add_argument("--cache_layer", default=10, type=int)
-    parser.add_argument("--cache_dataset", default="Skylion007/openwebtext", type=str)
-    parser.add_argument("--cache_batch_size", default=2048, type=int)
+    parser.add_argument("--model", default="google/gemma-3-1b-pt", type=str)
+    parser.add_argument("--layer", default=10, type=int)
+    parser.add_argument("--dataset", default="Skylion007/openwebtext", type=str)
 
     parser.add_argument("--d_model", default=1152, type=int)
     parser.add_argument("--d_mid", default=2304, type=int)
@@ -24,7 +23,6 @@ def make_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=4096, type=int)
-    parser.add_argument("--n_epochs", default=10, type=int)
     parser.add_argument("--frac_inactive", default=0.5, type=float)
     parser.add_argument("--upload_every", default=128, type=int)
     parser.add_argument("--save_path", default="./sae", type=str)
@@ -39,17 +37,15 @@ def main() -> None:
     train_cfg = TrainConfig(
         lr=args.lr,
         batch_size=args.batch_size,
-        n_epochs=args.n_epochs,
         frac_inactive=args.frac_inactive,
         save_path=args.save_path,
         upload_every=args.upload_every,
     )
 
     cache_cfg = CacheConfig(
-        model=args.cache_model,
-        layer=args.cache_layer,
-        dataset=args.cache_dataset,
-        batch_size=args.cache_batch_size,
+        model=args.model,
+        layer=args.layer,
+        dataset=args.dataset,
     )
 
     sae_cfg = SAEConfig(
