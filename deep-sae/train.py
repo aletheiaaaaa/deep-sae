@@ -34,7 +34,6 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
         param.data.mul_(mask)
 
 
-@torch.compile()
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     model = LanguageModel(
         "google/gemma-3-1b-pt", device_map=device, dispatch=True, torch_dtype=torch.float16
