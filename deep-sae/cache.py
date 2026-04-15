@@ -20,7 +20,6 @@ class CacheConfig:
 def make_act_cache(cfg: CacheConfig) -> torch.Tensor:
     model = VLLM(
         cfg.model,
-        device_map=device,
         torch_dtype=torch.float16,
         trust_remote_code=True,
     )
