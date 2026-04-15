@@ -20,7 +20,7 @@ compressed-tensors==0.9.1
 cupy-cuda12x==13.6.0
 datasets==4.5.0
 decorator==5.2.1
-dFrameworksFrameworksepyf==0.18.0
+depyf==0.18.0
 dill==0.4.0
 diskcache==5.6.3
 distro==1.9.0
