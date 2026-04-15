@@ -47,7 +47,7 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     tokenizer.pad_token = tokenizer.eos_token
 
     def tokenize(examples):
-        tokenizer(examples["text"], truncation=True, max_length=128, padding="max_length")
+        return tokenizer(examples["text"], truncation=True, max_length=128, padding="max_length")
 
     tokens = dataset.map(tokenize, batched=True)
 
