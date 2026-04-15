@@ -47,8 +47,9 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     batches = dataset.batch(batch_size=train_cfg.batch_size)  # type: ignore
     for i, batch in enumerate(batches):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
-        with model.trace(**batch):
-            hidden = model.model.layers[train_cfg.layer].output[0].save()
+        with model.trace() as tracer:
+            with tracer.invoke(**batch):
+                hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
 
