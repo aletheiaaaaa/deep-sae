@@ -34,7 +34,7 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
 
 
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
-    model = VLLM("google/gemma-3-1b-pt", dtype=torch.float16)
+    model = VLLM("google/gemma-2-2b", dtype=torch.float16)
     dataset = load_dataset(
         path=train_cfg.dataset,
         split="train",
