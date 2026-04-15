@@ -10,7 +10,6 @@ def make_parser() -> argparse.ArgumentParser:
         description="Trains and evaluates a deep vs shallow SAE on real-world transformers",
     )
 
-    parser.add_argument("--model", default="google/gemma-3-1b-pt", type=str)
     parser.add_argument("--layer", default=10, type=int)
     parser.add_argument("--dataset", default="Skylion007/openwebtext", type=str)
 
@@ -40,10 +39,6 @@ def main() -> None:
         frac_inactive=args.frac_inactive,
         save_path=args.save_path,
         upload_every=args.upload_every,
-    )
-
-    cache_cfg = CacheConfig(
-        model=args.model,
         layer=args.layer,
         dataset=args.dataset,
     )
@@ -59,7 +54,7 @@ def main() -> None:
 
     sae = DeepTopK(sae_cfg).half()
 
-    train(sae, cache_cfg, train_cfg)
+    train(sae, train_cfg)
 
 
 if __name__ == "__main__":

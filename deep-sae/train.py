@@ -4,8 +4,7 @@ import torch
 from torch import optim
 from tqdm import tqdm
 import wandb
-import nnsight
-from nnterp import StandardizedTransformer
+from nnsight import LanguageModel
 from datasets import load_dataset
 
 from .model import DeepTopK
@@ -20,11 +19,6 @@ class TrainConfig:
     frac_inactive: float
     save_path: str
     upload_every: int
-
-
-@dataclass
-class CacheConfig:
-    model: str
     layer: int
     dataset: str
 
@@ -39,10 +33,10 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
         param.data.mul_(mask)
 
 
-def train(sae: DeepTopK, cache_cfg: CacheConfig, train_cfg: TrainConfig) -> None:
-    model = StandardizedTransformer(cache_cfg.model, device_map="auto", dispatch=True)
+def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
+    model = LanguageModel("google/gemma-3-1b-pt", device_map="auto", dispatch=True)
     dataset = load_dataset(
-        path=cache_cfg.dataset,
+        path=train_cfg.dataset,
         split="train",
         streaming=True,
     )
@@ -54,7 +48,7 @@ def train(sae: DeepTopK, cache_cfg: CacheConfig, train_cfg: TrainConfig) -> None
     for i, batch in enumerate(batches):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
         with model.trace(batch):
-            hidden = nnsight.save(model.layers_output[cache_cfg.layer])
+            hidden = model.model.layers[train_cfg.layer].outputs[0]
 
             _, loss_dict = sae(hidden)
 
