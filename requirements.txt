@@ -1,7 +1,7 @@
-torch==2.7.0
-nnsight==0.5.12
-datasets==4.0.0
-wandb==0.23.0
-tqdm==4.67.1
-vllm==0.9.2
-transformers==4.53.0
+torch>=2.4.0,<2.6.0
+transformers>=4.44.0,<4.50.0
+vllm>=0.6.0
+nnsight>=0.3.0 
+datasets>=3.0.0
+wandb>=0.18.0
+tqdm>=4.66.0
