@@ -34,6 +34,7 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
         param.data.mul_(mask)
 
 
+@torch.compile()
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     model = LanguageModel(
         "google/gemma-3-1b-pt", device_map=device, dispatch=True, torch_dtype=torch.float16
@@ -65,8 +66,7 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
             with tracer.invoke(input_ids=input_ids):
                 hidden = model.model.layers[train_cfg.layer].output[0].save()
 
-        flat_hidden = hidden.value[attention_mask == 1]
-        _, loss_dict = sae(flat_hidden)
+        _, loss_dict = sae(hidden.value)
 
         optimizer.zero_grad()
         loss_dict.l2_loss.backward()
