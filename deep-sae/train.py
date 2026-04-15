@@ -48,24 +48,24 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     for i, batch in enumerate(batches):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
         with model.trace(batch):
-            hidden = model.model.layers[train_cfg.layer].outputs[0]
+            hidden = model.model.layers[train_cfg.layer].output[0].save()
 
-            _, loss_dict = sae(hidden)
+        _, loss_dict = sae(hidden.value)
 
-            optimizer.zero_grad()
-            loss_dict.l2_loss.backward()
-            optimizer.step()
+        optimizer.zero_grad()
+        loss_dict.l2_loss.backward()
+        optimizer.step()
 
-            weights_topk(sae, frac_inactive)
+        weights_topk(sae, frac_inactive)
 
-            if (i + 1) % train_cfg.upload_every == 0:
-                wandb.log(
-                    {
-                        "l2_loss": loss_dict.l2_loss,
-                        "l0_norm": loss_dict.l0_norm,
-                        "n_dead": loss_dict.n_dead,
-                    }
-                )
+        if (i + 1) % train_cfg.upload_every == 0:
+            wandb.log(
+                {
+                    "l2_loss": loss_dict.l2_loss,
+                    "l0_norm": loss_dict.l0_norm,
+                    "n_dead": loss_dict.n_dead,
+                }
+            )
 
         tqdm.write(f"Loss after {i + 1} steps:", loss_dict.l2_loss)  # type: ignore
 
