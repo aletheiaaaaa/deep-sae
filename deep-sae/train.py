@@ -35,7 +35,9 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
 
 
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
-    model = LanguageModel("google/gemma-3-1b-pt", device_map=device, dispatch=True)
+    model = LanguageModel(
+        "google/gemma-3-1b-pt", device_map=device, dispatch=True, torch_dtype=torch.float16
+    )
     dataset = load_dataset(
         path=train_cfg.dataset,
         split="train",
@@ -44,24 +46,20 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
     tokenizer.pad_token = tokenizer.eos_token
 
+    def tokenize(examples):
+        tokenizer(examples["text"], truncation=True, max_length=128, padding="max_length")
+
+    tokens = dataset.map(tokenize, batched=True)
+
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
 
-    batches = dataset.batch(batch_size=train_cfg.batch_size)  # type: ignore
+    batches = tokens.batch(batch_size=train_cfg.batch_size)  # type: ignore
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        tokens = tokenizer(
-            batch["text"],
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=128,
-            padding_side="right",
-        )
-
-        input_ids = tokens["input_ids"].to(device)
-        attention_mask = tokens["attention_mask"].to(device)
+        input_ids = torch.stack(batch["input_ids"]).to(device)
+        attention_mask = torch.stack(batch["attention_mask"]).to(device)
 
         with model.trace() as tracer:
             with tracer.invoke(input_ids=input_ids):
