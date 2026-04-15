@@ -1,6 +1,6 @@
 import argparse
 
-from .train import CacheConfig, TrainConfig, train
+from .train import TrainConfig, train
 from .model import SAEConfig, DeepTopK
 
 
