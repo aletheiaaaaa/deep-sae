@@ -4,8 +4,7 @@ import torch
 from torch import optim
 from tqdm import tqdm
 import wandb
-from transformers import AutoTokenizer
-from nnsight import LanguageModel
+from nnsight.modeling.vllm import VLLM
 from datasets import load_dataset
 
 from .model import DeepTopK
@@ -35,35 +34,22 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
 
 
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
-    model = LanguageModel(
-        "google/gemma-3-1b-pt", device_map=device, dispatch=True, torch_dtype=torch.float16
-    )
+    model = VLLM("google/gemma-3-1b-pt", dtype=torch.float16)
     dataset = load_dataset(
         path=train_cfg.dataset,
         split="train",
         streaming=True,
     )
-    tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
-    tokenizer.pad_token = tokenizer.eos_token
-
-    def tokenize(examples):
-        return tokenizer(examples["text"], truncation=True, max_length=128, padding="max_length")
-
-    tokens = dataset.map(tokenize, batched=True)
 
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
 
-    batches = tokens.batch(batch_size=train_cfg.batch_size)  # type: ignore
+    batches = dataset.batch(batch_size=train_cfg.batch_size)  # type: ignore
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        input_ids = torch.tensor(batch["input_ids"]).to(device)
-        attention_mask = torch.tensor(batch["attention_mask"]).to(device)
-
-        with model.trace() as tracer:
-            with tracer.invoke(input_ids=input_ids):
-                hidden = model.model.layers[train_cfg.layer].output[0].save()
+        with model.trace(batch["text"]):
+            hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
 
