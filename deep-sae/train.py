@@ -58,8 +58,8 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        input_ids = torch.stack(batch["input_ids"]).to(device)
-        attention_mask = torch.stack(batch["attention_mask"]).to(device)
+        input_ids = torch.tensor(batch["input_ids"]).to(device)
+        attention_mask = torch.tensor(batch["attention_mask"]).to(device)
 
         with model.trace() as tracer:
             with tracer.invoke(input_ids=input_ids):
