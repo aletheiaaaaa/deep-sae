@@ -18,12 +18,7 @@ class CacheConfig:
 
 
 def make_act_cache(cfg: CacheConfig) -> torch.Tensor:
-    model = VLLM(
-        cfg.model,
-        torch_dtype=torch.float16,
-        trust_remote_code=True,
-    )
-
+    model = VLLM(cfg.model)
     dataset = load_dataset(
         path=cfg.dataset,
         split="train",
