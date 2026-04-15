@@ -72,3 +72,7 @@ def main() -> None:
     sae = DeepTopK(sae_cfg).half()
 
     train(sae, cache, train_cfg)
+
+
+if __name__ == "__main__":
+    main()
