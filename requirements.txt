@@ -1,4 +1,4 @@
-torch==2.8.0
+torch==2.7.0
 nnsight==0.5.12
 datasets==4.0.0
 wandb==0.23.0
