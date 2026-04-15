@@ -1,0 +1,5 @@
+torch==2.8.0
+nnsight==0.6.3
+datasets==4.0.0
+wandb==0.23.0
+tqdm==4.67.1
