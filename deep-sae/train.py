@@ -4,6 +4,7 @@ import torch
 from torch import optim
 from tqdm import tqdm
 import wandb
+from transformers import AutoTokenizer
 from nnsight import LanguageModel
 from datasets import load_dataset
 
@@ -40,8 +41,11 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
         split="train",
         streaming=True,
     )
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-3-1b-pt")
+
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
+
     batches = dataset.batch(batch_size=train_cfg.batch_size)  # type: ignore
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
