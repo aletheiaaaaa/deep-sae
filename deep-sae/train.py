@@ -2,11 +2,15 @@ from dataclasses import dataclass
 import os
 import torch
 from torch import optim
-from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import wandb
+import nnsight
+from nnsight import LanguageModel
+from datasets import load_dataset
 
 from .model import DeepTopK
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 @dataclass
@@ -19,6 +23,14 @@ class TrainConfig:
     upload_every: int
 
 
+@dataclass
+class CacheConfig:
+    model: str
+    layer: int
+    dataset: str
+    batch_size: int
+
+
 @torch.no_grad()
 def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
     for param in model.parameters():
@@ -29,18 +41,24 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
         param.data.mul_(mask)
 
 
-def train(model: DeepTopK, acts: torch.Tensor, cfg: TrainConfig) -> None:
-    dataset = TensorDataset(acts, acts)
-    loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True)
-
-    optimizer = optim.AdamW(model.parameters(), lr=cfg.lr)
+def train(sae: DeepTopK, cache_cfg: CacheConfig, cfg: TrainConfig) -> None:
+    model = LanguageModel(cache_cfg.model, device_map="auto", dispatch=True)
+    dataset = load_dataset(
+        path=cache_cfg.dataset,
+        split="train",
+        streaming=True,
+    )
 
     wandb.init(project="deep-sae")
-    for epoch in tqdm(range(cfg.n_epochs)):
-        frac_inactive = min(epoch * (2 * cfg.frac_inactive / cfg.n_epochs), cfg.frac_inactive)
+    optimizer = optim.AdamW(model.parameters(), lr=cfg.lr)
 
-        for inputs, _ in loader:
-            _, loss_dict = model(inputs)
+    batches = dataset.batch(batch_size=cache_cfg.batch_size)  # type: ignore
+    for i, batch in enumerate(batches):
+        frac_inactive = min(i * 1048576 / cache_cfg.batch_size, cfg.frac_inactive)
+        with model.trace(batch):
+            hidden = nnsight.save(model.transformer.h[cache_cfg.layer].outputs)
+
+            _, loss_dict = sae(hidden)
 
             optimizer.zero_grad()
             loss_dict.l2_loss.backward()
@@ -48,7 +66,7 @@ def train(model: DeepTopK, acts: torch.Tensor, cfg: TrainConfig) -> None:
 
             weights_topk(model, frac_inactive)
 
-            if (epoch + 1) % cfg.upload_every == 0:
+            if (i + 1) % cfg.upload_every == 0:
                 wandb.log(
                     {
                         "l2_loss": loss_dict.l2_loss,
@@ -57,7 +75,7 @@ def train(model: DeepTopK, acts: torch.Tensor, cfg: TrainConfig) -> None:
                     }
                 )
 
-        tqdm.write(f"Loss after {epoch + 1} epochs:", loss_dict.l2_loss)  # type: ignore
+        tqdm.write(f"Loss after {i + 1} steps:", loss_dict.l2_loss)  # type: ignore
 
     if not os.path.exists(os.path.dirname(cfg.save_path)):
         os.mkdir(os.path.dirname(cfg.save_path))

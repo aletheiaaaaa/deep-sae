@@ -1,8 +1,6 @@
 import argparse
-import os
 
-from .train import TrainConfig, train
-from .cache import CacheConfig, make_act_cache, load_act_cache
+from .train import CacheConfig, TrainConfig, train
 from .model import SAEConfig, DeepTopK
 
 
@@ -16,7 +14,6 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache_layer", default=10, type=int)
     parser.add_argument("--cache_dataset", default="Skylion007/openwebtext", type=str)
     parser.add_argument("--cache_batch_size", default=2048, type=int)
-    parser.add_argument("--cache_save_dir", default="./acts", type=str)
 
     parser.add_argument("--d_model", default=1152, type=int)
     parser.add_argument("--d_mid", default=2304, type=int)
@@ -29,7 +26,7 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch_size", default=4096, type=int)
     parser.add_argument("--n_epochs", default=10, type=int)
     parser.add_argument("--frac_inactive", default=0.5, type=float)
-    parser.add_argument("--upload_every", default=1, type=int)
+    parser.add_argument("--upload_every", default=128, type=int)
     parser.add_argument("--save_path", default="./sae", type=str)
 
     return parser
@@ -53,7 +50,6 @@ def main() -> None:
         layer=args.cache_layer,
         dataset=args.cache_dataset,
         batch_size=args.cache_batch_size,
-        save_dir=args.cache_save_dir,
     )
 
     sae_cfg = SAEConfig(
@@ -65,14 +61,9 @@ def main() -> None:
         batches_to_dead=args.batches_to_dead,
     )
 
-    if os.path.exists(args.cache_save_dir):
-        cache = load_act_cache(cache_cfg)
-    else:
-        cache = make_act_cache(cache_cfg)
-
     sae = DeepTopK(sae_cfg).half()
 
-    train(sae, cache, train_cfg)
+    train(sae, cache_cfg, train_cfg)
 
 
 if __name__ == "__main__":
