@@ -69,6 +69,6 @@ def main() -> None:
     else:
         cache = make_act_cache(cache_cfg)
 
-    sae = DeepTopK(sae_cfg)
+    sae = DeepTopK(sae_cfg).half()
 
     train(sae, cache, train_cfg)
