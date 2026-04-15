@@ -50,9 +50,16 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        inputs = {k: torch.tensor(v).to(model.device) for k, v in batch.items()}
+        tokens = tokenizer(
+            batch["text"],
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=128,
+        ).to(model.device)
+
         with model.trace() as tracer:
-            with tracer.invoke(**inputs):
+            with tracer.invoke(**tokens):
                 hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
