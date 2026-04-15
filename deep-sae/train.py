@@ -64,13 +64,16 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
         attention_mask = tokens["attention_mask"].to(device)
 
         with model.trace() as tracer:
-            with tracer.invoke(input_ids=input_ids, attention_mask=attention_mask):
+            with tracer.invoke(input_ids=input_ids):
                 hidden = model.model.layers[train_cfg.layer].output[0].save()
 
-        _, loss_dict = sae(hidden.value)
+        flat_hidden = hidden.value[attention_mask == 1]
+        _, loss_dict = sae(flat_hidden)
+
         optimizer.zero_grad()
         loss_dict.l2_loss.backward()
         optimizer.step()
+
         weights_topk(sae, frac_inactive)
 
         if (i + 1) % train_cfg.upload_every == 0:
