@@ -40,38 +40,34 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
         split="train",
         streaming=True,
     )
-
     wandb.init(project="deep-sae")
-    optimizer = optim.AdamW(model.parameters(), lr=train_cfg.lr)
-
+    optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
     batches = dataset.batch(batch_size=train_cfg.batch_size)  # type: ignore
-    for i, batch in enumerate(batches):
+    for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
+
+        inputs = {k: torch.tensor(v).to(model.device) for k, v in batch.items()}
         with model.trace() as tracer:
-            with tracer.invoke(**batch):
+            with tracer.invoke(**inputs):
                 hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
-
         optimizer.zero_grad()
         loss_dict.l2_loss.backward()
         optimizer.step()
-
         weights_topk(sae, frac_inactive)
 
         if (i + 1) % train_cfg.upload_every == 0:
             wandb.log(
                 {
-                    "l2_loss": loss_dict.l2_loss,
-                    "l0_norm": loss_dict.l0_norm,
+                    "l2_loss": loss_dict.l2_loss.item(),
+                    "l0_norm": loss_dict.l0_norm.item(),
                     "n_dead": loss_dict.n_dead,
                 }
             )
 
-        tqdm.write(f"Loss after {i + 1} steps:", loss_dict.l2_loss)  # type: ignore
+        tqdm.write(f"Loss after {i + 1} steps: {loss_dict.l2_loss.item()}")
 
-    if not os.path.exists(os.path.dirname(train_cfg.save_path)):
-        os.mkdir(os.path.dirname(train_cfg.save_path))
-
-    torch.save(model.state_dict(), train_cfg.save_path)
+    os.makedirs(os.path.dirname(train_cfg.save_path), exist_ok=True)
+    torch.save(sae.state_dict(), train_cfg.save_path)
     print(f"Saved model at {train_cfg.save_path}")
