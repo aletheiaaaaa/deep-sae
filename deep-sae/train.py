@@ -65,7 +65,7 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        with model.trace(input_ids, attention_mask=attention_mask):
+        with model.trace(batch["input_ids"], attention_mask=batch["attention_mask"]):
             hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
