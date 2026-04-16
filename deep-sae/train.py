@@ -41,6 +41,15 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
         streaming=True,
     )
 
+    def truncate(examples):
+        out = []
+        for e in examples["text"]:
+            out += [e[:128]]
+
+        return {"truncated": out}
+
+    dataset.map(truncate, batched=True, remove_columns=dataset.column_names)
+
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
 
@@ -48,7 +57,7 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     for i, batch in enumerate(tqdm(batches)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        with model.trace(batch["text"]):
+        with model.trace(batch["truncated"]):
             hidden = model.model.layers[train_cfg.layer].output[0].save()
 
         _, loss_dict = sae(hidden.value)
