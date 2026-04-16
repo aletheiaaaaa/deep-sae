@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 
 from .model import DeepTopK
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0")
 
 
 @dataclass
