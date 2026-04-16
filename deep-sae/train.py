@@ -48,7 +48,7 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
 
         return {"truncated": out}
 
-    dataset.map(truncate, batched=True, remove_columns=dataset.column_names)
+    dataset.map(truncate, batched=True)
 
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
