@@ -35,20 +35,28 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
 
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     model = LanguageModel("google/gemma-3-1b-pt", device_map=device, torch_dtype=torch.float16)
+    tokenizer = model.tokenizer
+
     dataset = load_dataset(
         path=train_cfg.dataset,
         split="train",
         streaming=True,
     )
 
-    def truncate(examples):
-        out = []
-        for e in examples["text"]:
-            out += [e[:128]]
+    def tokenize(examples):
+        enc = tokenizer(
+            examples["text"],
+            max_length=128,
+            truncation=True,
+            padding="max_length",
+            return_tensors=None,
+        )
+        return {
+            "input_ids": enc["input_ids"],
+            "attention_mask": enc["attention_mask"],
+        }
 
-        return {"truncated": out}
-
-    dataset.map(truncate, batched=True)
+    dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
 
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
