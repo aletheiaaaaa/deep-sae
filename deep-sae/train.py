@@ -6,6 +6,7 @@ from tqdm import tqdm
 import wandb
 from nnsight import LanguageModel
 from datasets import load_dataset
+from torch.utils.data import DataLoader
 
 from .model import DeepTopK
 
@@ -58,15 +59,21 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
 
     dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
 
+    loader = DataLoader(
+        dataset.with_format("torch"),
+        batch_size=train_cfg.batch_size,
+        num_workers=4,
+        pin_memory=True,
+    )
+
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
 
-    batches = dataset.batch(batch_size=train_cfg.batch_size)  # type: ignore
-    for i, batch in enumerate(tqdm(batches)):
+    for i, batch in enumerate(tqdm(loader)):
         frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
 
-        input_ids = torch.tensor(batch["input_ids"])
-        attention_mask = torch.tensor(batch["attention_mask"])
+        input_ids = torch.tensor(batch["input_ids"], device=device)
+        attention_mask = torch.tensor(batch["attention_mask"], device=device)
 
         with model.trace(input_ids, attention_mask=attention_mask):
             hidden = model.model.layers[train_cfg.layer].output[0].save()
