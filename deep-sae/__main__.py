@@ -1,6 +1,6 @@
 import argparse
 
-from .train import TrainConfig, train
+from .train import TrainConfig, train, device
 from .model import SAEConfig, DeepTopK
 
 
@@ -52,7 +52,7 @@ def main() -> None:
         batches_to_dead=args.batches_to_dead,
     )
 
-    sae = DeepTopK(sae_cfg).half()
+    sae = DeepTopK(sae_cfg).to(device).half()
 
     train(sae, train_cfg)
 
