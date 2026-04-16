@@ -4,7 +4,7 @@ import torch
 from torch import optim
 from tqdm import tqdm
 import wandb
-from nnsight.modeling.vllm import VLLM
+from nnsight import LanguageModel
 from datasets import load_dataset
 
 from .model import DeepTopK
@@ -34,7 +34,7 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
 
 
 def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
-    model = VLLM("google/gemma-3-1b-pt", dtype=torch.float16)
+    model = LanguageModel("google/gemma-3-1b-pt", torch_dtype=torch.float16)
     dataset = load_dataset(
         path=train_cfg.dataset,
         split="train",
