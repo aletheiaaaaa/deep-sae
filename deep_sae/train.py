@@ -75,21 +75,25 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
         _, dict_shallow = shallow(h.clone())
 
         deep_optim.zero_grad()
-        dict_deep.l2_loss.backward()
+        dict_deep.loss.backward()
         deep_optim.step()
 
         shallow_optim.zero_grad()
-        dict_shallow.l2_loss.backward()
+        dict_shallow.loss.backward()
         shallow_optim.step()
 
-        if (i + 1) % train_cfg.upload_every == 0:
+        if i % train_cfg.upload_every == 0:
             wandb.log(
                 {
+                    "deep/loss": dict_deep.loss.item(),
                     "deep/l2_loss": dict_deep.l2_loss.item(),
+                    "deep/aux_loss": dict_deep.aux_loss.item(),
                     "deep/n_dead0": dict_deep.n_dead0,
                     "deep/n_dead1": dict_deep.n_dead1,
                     "deep/n_dead2": dict_deep.n_dead2,
+                    "shallow/loss": dict_shallow.loss.item(),
                     "shallow/l2_loss": dict_shallow.l2_loss.item(),
+                    "shallow/aux_loss": dict_shallow.aux_loss.item(),
                     "shallow/n_dead1": dict_shallow.n_dead1,
                 },
                 step=i,
