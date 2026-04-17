@@ -17,8 +17,9 @@ class SAEConfig:
 @dataclass
 class Results:
     l2_loss: float
-    l0_norm: int
-    n_dead: int
+    n_dead0: int
+    n_dead1: int
+    n_dead2: int
 
 
 class DeepTopK(nn.Module):
@@ -38,11 +39,18 @@ class DeepTopK(nn.Module):
         self.batches_to_dead = cfg.batches_to_dead
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
-        self.n_batches_inactive: torch.Tensor
+        self.n_inactive_layers = [
+            torch.zeros(cfg.k_mid),
+            torch.zeros(cfg.k_feat),
+            torch.zeros(cfg.k_mid),
+        ]
 
-    def _update_n_inactive(self, x: torch.Tensor) -> None:
-        self.n_batches_inactive += (x.sum(0) == 0).float()
-        self.n_batches_inactive[x.sum(0) > 0] = 0
+    def _update_n_inactive(
+        self, mid0: torch.Tensor, mid1: torch.Tensor, mid2: torch.Tensor
+    ) -> None:
+        for counter, act in zip(self.n_inactive_layers, [mid0, mid1, mid2], strict=True):
+            counter += (act.sum(0) == 0).float()
+            counter[act.sum(0) > 0] = 0
 
     def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
         topk = torch.topk(x.flatten(), k * x.shape[0])
@@ -52,23 +60,31 @@ class DeepTopK(nn.Module):
         self,
         input: torch.Tensor,
         recon: torch.Tensor,
-        topk: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
-        l0_norm = (topk > 0).float().sum(-1).mean()
-        n_dead = self.n_batches_inactive > self.batches_to_dead
+        n_dead = [(self.n_inactive_layers[i] > self.batches_to_dead).sum() for i in range(3)]
 
-        return Results(l2_loss=l2_loss.item(), l0_norm=int(l0_norm.item()), n_dead=n_dead)
+        return Results(
+            l2_loss=l2_loss.item(),
+            n_dead0=int(n_dead[0].item()),
+            n_dead1=int(n_dead[1].item()),
+            n_dead2=int(n_dead[2].item()),
+        )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Results]:
-        input = x.clone()
+        input = x.clone().detach()
 
         x = self._topk(F.relu(x @ self.W_enc1 + self.b_enc1), self.k_mid)
+        mid0 = x.clone().detach()
+
         x = self._topk(F.relu(x @ self.W_enc2 + self.b_enc2), self.k_feat)
-        acts = x.clone()
-        self._update_n_inactive(acts)
+        mid1 = x.clone()
 
         x = self._topk(F.relu(x @ self.W_dec2 + self.b_dec2), self.k_mid)
+        mid2 = x.clone().detach()
+
         recon = x @ self.W_dec1 + self.b_dec1
 
-        return recon, self._loss_dict(input, recon, acts)
+        self._update_n_inactive(mid0, mid1, mid2)
+
+        return recon, self._loss_dict(input, recon)
