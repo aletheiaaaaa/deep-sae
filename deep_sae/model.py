@@ -93,3 +93,54 @@ class DeepTopK(nn.Module):
         self._update_n_inactive(mid0, mid1, mid2)
 
         return recon, self._loss_dict(input, recon)
+
+
+class ShallowTopK(nn.Module):
+    def __init__(self, cfg: SAEConfig) -> None:
+        super().__init__()
+
+        self.b_enc = nn.Parameter(torch.zeros(cfg.d_feat))
+        self.W_enc = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_model, cfg.d_feat)))
+
+        self.b_dec = nn.Parameter(torch.zeros(cfg.d_model))
+        self.W_dec = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_model)))
+
+        self.batches_to_dead = cfg.batches_to_dead
+        self.k_feat = cfg.k_feat
+
+        self.register_buffer("n_inactive", torch.zeros(cfg.d_feat))
+
+    def _update_n_inactive(self, feat: torch.Tensor) -> None:
+        self.n_inactive += (feat.sum((0, 1)) == 0).float()
+        self.n_inactive[feat.sum((0, 1)) > 0] = 0
+
+    def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
+        topk = torch.topk(x.flatten(), k * x.shape[0] * x.shape[1])
+        return torch.zeros_like(x.flatten()).scatter(-1, topk.indices, topk.values).reshape(x.shape)
+
+    def _loss_dict(
+        self,
+        input: torch.Tensor,
+        recon: torch.Tensor,
+    ) -> Results:
+        l2_loss = (recon.float() - input.float()).pow(2).mean()
+
+        return Results(
+            l2_loss=l2_loss,
+            n_dead0=0,
+            n_dead1=int((self.n_inactive > self.batches_to_dead).sum().item()),
+            n_dead2=0,
+        )
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Results]:
+        x = x.float()
+        input = x.clone().detach()
+
+        x = self._topk(F.relu(x @ self.W_enc + self.b_enc), self.k_feat)
+        feat = x.clone().detach()
+
+        recon = x @ self.W_dec + self.b_dec
+
+        self._update_n_inactive(feat)
+
+        return recon, self._loss_dict(input, recon)

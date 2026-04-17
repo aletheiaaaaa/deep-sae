@@ -1,7 +1,7 @@
 import argparse
 
 from .train import TrainConfig, train
-from .model import SAEConfig, DeepTopK, device
+from .model import SAEConfig, DeepTopK, ShallowTopK, device
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -22,7 +22,6 @@ def make_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
-    parser.add_argument("--frac_inactive", default=0.5, type=float)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="./sae", type=str)
 
@@ -36,7 +35,6 @@ def main() -> None:
     train_cfg = TrainConfig(
         lr=args.lr,
         batch_size=args.batch_size,
-        frac_inactive=args.frac_inactive,
         save_path=args.save_path,
         upload_every=args.upload_every,
         layer=args.layer,
@@ -52,9 +50,10 @@ def main() -> None:
         batches_to_dead=args.batches_to_dead,
     )
 
-    sae = DeepTopK(sae_cfg).to(device).float()
+    deep = DeepTopK(sae_cfg).to(device).float()
+    shallow = ShallowTopK(sae_cfg).to(device).float()
 
-    train(sae, train_cfg)
+    train(deep, shallow, train_cfg)
 
 
 if __name__ == "__main__":
