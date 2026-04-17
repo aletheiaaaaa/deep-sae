@@ -88,7 +88,7 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
                     "deep/n_dead1": dict_deep.n_dead1,
                     "deep/n_dead2": dict_deep.n_dead2,
                     "shallow/l2_loss": dict_shallow.l2_loss.item(),
-                    "shallow/n_dead1": dict_shallow.n_dead0,
+                    "shallow/n_dead1": dict_shallow.n_dead1,
                 },
                 step=i,
             )
