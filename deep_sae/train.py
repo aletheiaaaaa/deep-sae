@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import os
+
 import torch
 from torch import optim
 from tqdm import tqdm
@@ -20,15 +21,17 @@ class TrainConfig:
     upload_every: int
     layer: int
     dataset: str
+    ramp_tokens: int = 1_048_576
 
 
 @torch.no_grad()
 def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
     for param in model.parameters():
         flat = param.data.abs().flatten()
-        k = int(flat.numel() * frac_inactive)
+        n = flat.numel()
+        k = int(n * frac_inactive)
         thresh = flat.kthvalue(k).values
-        mask = param.data.abs() > thresh
+        mask = (param.data.abs() > thresh).to(param.data.dtype)
         param.data.mul_(mask)
 
 
@@ -60,23 +63,26 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
     loader = DataLoader(
         dataset.with_format("torch"),
         batch_size=train_cfg.batch_size,
-        num_workers=4,
+        num_workers=0,
         pin_memory=True,
     )
 
     wandb.init(project="deep-sae")
     optimizer = optim.AdamW(sae.parameters(), lr=train_cfg.lr)
 
-    for i, batch in enumerate(tqdm(loader)):
-        frac_inactive = min(i * 1048576 / train_cfg.batch_size, train_cfg.frac_inactive)
+    tokens_seen = 0
 
-        input_ids = torch.tensor(batch["input_ids"], device=device)
-        attention_mask = torch.tensor(batch["attention_mask"], device=device)
+    for i, batch in enumerate(tqdm(loader)):
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        tokens_seen += int(attention_mask.sum().item())
+
+        frac_inactive = min(tokens_seen / train_cfg.ramp_tokens, 1.0) * train_cfg.frac_inactive
 
         with model.trace(input_ids, attention_mask=attention_mask):
             hidden = model.model.layers[train_cfg.layer].output.save()
 
-        print(hidden.shape)
         _, loss_dict = sae(hidden)
 
         optimizer.zero_grad()
@@ -92,10 +98,15 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
                     "n_dead0": loss_dict.n_dead0,
                     "n_dead1": loss_dict.n_dead1,
                     "n_dead2": loss_dict.n_dead2,
-                }
+                    "frac_inactive": frac_inactive,
+                    "tokens_seen": tokens_seen,
+                },
+                step=i,
             )
-
-        tqdm.write(f"Loss after {i + 1} steps: {loss_dict.l2_loss.item()}")
+            tqdm.write(
+                f"Step {i + 1} | loss: {loss_dict.l2_loss.item():.4f} | "
+                f"frac_inactive: {frac_inactive:.4f}"
+            )
 
     os.makedirs(os.path.dirname(train_cfg.save_path), exist_ok=True)
     torch.save(sae.state_dict(), train_cfg.save_path)
