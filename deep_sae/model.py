@@ -18,7 +18,7 @@ class SAEConfig:
 
 @dataclass
 class Results:
-    l2_loss: float
+    l2_loss: torch.Tensor
     n_dead0: int
     n_dead1: int
     n_dead2: int
@@ -67,7 +67,7 @@ class DeepTopK(nn.Module):
         n_dead = [(self.n_inactive_layers[i] > self.batches_to_dead).sum() for i in range(3)]
 
         return Results(
-            l2_loss=l2_loss.item(),
+            l2_loss=l2_loss,
             n_dead0=int(n_dead[0].item()),
             n_dead1=int(n_dead[1].item()),
             n_dead2=int(n_dead[2].item()),

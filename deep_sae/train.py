@@ -89,8 +89,9 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
             wandb.log(
                 {
                     "l2_loss": loss_dict.l2_loss.item(),
-                    "l0_norm": loss_dict.l0_norm.item(),
-                    "n_dead": loss_dict.n_dead,
+                    "n_dead0": loss_dict.n_dead0,
+                    "n_dead1": loss_dict.n_dead1,
+                    "n_dead2": loss_dict.n_dead2,
                 }
             )
 
