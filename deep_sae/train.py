@@ -83,10 +83,12 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
         if (i + 1) % train_cfg.upload_every == 0:
             wandb.log(
                 {
-                    "l2_loss": dict_deep.l2_loss.item(),
-                    "n_dead0": dict_deep.n_dead0,
-                    "n_dead1": dict_deep.n_dead1,
-                    "n_dead2": dict_deep.n_dead2,
+                    "deep/l2_loss": dict_deep.l2_loss.item(),
+                    "deep/n_dead0": dict_deep.n_dead0,
+                    "deep/n_dead1": dict_deep.n_dead1,
+                    "deep/n_dead2": dict_deep.n_dead2,
+                    "shallow/l2_loss": dict_shallow.l2_loss.item(),
+                    "shallow/n_dead1": dict_shallow.n_dead0,
                 },
                 step=i,
             )
