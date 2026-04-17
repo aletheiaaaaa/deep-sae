@@ -30,6 +30,10 @@ def weights_topk(model: DeepTopK, frac_inactive: float) -> None:
         flat = param.data.abs().flatten()
         n = flat.numel()
         k = int(n * frac_inactive)
+
+        if k == 0:
+            continue
+
         thresh = flat.kthvalue(k).values
         mask = (param.data.abs() > thresh).to(param.data.dtype)
         param.data.mul_(mask)
