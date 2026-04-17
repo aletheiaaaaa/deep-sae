@@ -20,6 +20,7 @@ class TrainConfig:
     upload_every: int
     layer: int
     dataset: str
+    run_name: str
 
 
 def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
@@ -54,7 +55,7 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
         pin_memory=True,
     )
 
-    wandb.init(project="deep-sae", name="gemma_test_1")
+    wandb.init(project="deep-sae", name=train_cfg.run_name)
     deep_optim = optim.AdamW(deep.parameters(), lr=train_cfg.lr)
     shallow_optim = optim.AdamW(shallow.parameters(), lr=train_cfg.lr)
 
@@ -95,6 +96,10 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
             )
             tqdm.write(f"Step {i + 1} | loss: {dict_deep.l2_loss.item():.4f} | ")
 
-    os.makedirs(os.path.dirname(train_cfg.save_path), exist_ok=True)
-    torch.save(deep.state_dict(), train_cfg.save_path)
-    print(f"Saved model at {train_cfg.save_path} trained on {tokens_seen}")
+    os.makedirs(train_cfg.save_path, exist_ok=True)
+
+    save_path = os.path.join(train_cfg.save_path, train_cfg.run_name)
+
+    torch.save(deep.state_dict(), f"{save_path}_deep.pt")
+    torch.save(shallow.state_dict(), f"{save_path}_shallow.pt")
+    print(f"Saved SAEs at {save_path}_{{deep/shallow}}.pt trained on {tokens_seen}")

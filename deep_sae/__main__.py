@@ -23,7 +23,8 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--upload_every", default=16, type=int)
-    parser.add_argument("--save_path", default="./sae", type=str)
+    parser.add_argument("--save_path", default="sae", type=str)
+    parser.add_argument("--run_name", default="default", type=str)
 
     return parser
 
@@ -39,6 +40,7 @@ def main() -> None:
         upload_every=args.upload_every,
         layer=args.layer,
         dataset=args.dataset,
+        run_name=args.run_name,
     )
 
     sae_cfg = SAEConfig(
