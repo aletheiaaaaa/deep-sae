@@ -8,9 +8,7 @@ from nnsight import LanguageModel
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-from .model import DeepTopK
-
-device = torch.device("cuda:0")
+from .model import DeepTopK, device
 
 
 @dataclass

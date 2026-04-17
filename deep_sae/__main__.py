@@ -1,7 +1,7 @@
 import argparse
 
-from .train import TrainConfig, train, device
-from .model import SAEConfig, DeepTopK
+from .train import TrainConfig, train
+from .model import SAEConfig, DeepTopK, device
 
 
 def make_parser() -> argparse.ArgumentParser:

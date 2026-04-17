@@ -3,6 +3,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 @dataclass
 class SAEConfig:
@@ -40,9 +42,9 @@ class DeepTopK(nn.Module):
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
         self.n_inactive_layers = [
-            torch.zeros(cfg.d_mid),
-            torch.zeros(cfg.d_feat),
-            torch.zeros(cfg.d_mid),
+            torch.zeros(cfg.d_mid, device=device),
+            torch.zeros(cfg.d_feat, device=device),
+            torch.zeros(cfg.d_mid, device=device),
         ]
 
     def _update_n_inactive(
