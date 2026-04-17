@@ -21,7 +21,7 @@ class TrainConfig:
     upload_every: int
     layer: int
     dataset: str
-    ramp_tokens: int = 1_048_576
+    ramp_tokens: int = 16_777_216
 
 
 @torch.no_grad()
@@ -110,4 +110,4 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
 
     os.makedirs(os.path.dirname(train_cfg.save_path), exist_ok=True)
     torch.save(sae.state_dict(), train_cfg.save_path)
-    print(f"Saved model at {train_cfg.save_path}")
+    print(f"Saved model at {train_cfg.save_path} trained on {tokens_seen}")
