@@ -41,16 +41,19 @@ class DeepTopK(nn.Module):
         self.batches_to_dead = cfg.batches_to_dead
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
-        self.n_inactive_layers = [
-            torch.zeros(cfg.d_mid, device=device),
-            torch.zeros(cfg.d_feat, device=device),
-            torch.zeros(cfg.d_mid, device=device),
-        ]
+
+        self.register_buffer("n_inactive_0", torch.zeros(cfg.d_mid))
+        self.register_buffer("n_inactive_1", torch.zeros(cfg.d_feat))
+        self.register_buffer("n_inactive_2", torch.zeros(cfg.d_mid))
 
     def _update_n_inactive(
         self, mid0: torch.Tensor, mid1: torch.Tensor, mid2: torch.Tensor
     ) -> None:
-        for counter, act in zip(self.n_inactive_layers, [mid0, mid1, mid2], strict=True):
+        for counter, act in zip(
+            [self.n_inactive_0, self.n_inactive_1, self.n_inactive_2],
+            [mid0, mid1, mid2],
+            strict=True,
+        ):
             counter += (act.sum((0, 1)) == 0).float()
             counter[act.sum((0, 1)) > 0] = 0
 
@@ -64,13 +67,12 @@ class DeepTopK(nn.Module):
         recon: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
-        n_dead = [(self.n_inactive_layers[i] > self.batches_to_dead).sum() for i in range(3)]
 
         return Results(
             l2_loss=l2_loss,
-            n_dead0=int(n_dead[0].item()),
-            n_dead1=int(n_dead[1].item()),
-            n_dead2=int(n_dead[2].item()),
+            n_dead0=int((self.n_inactive_0 > self.batches_to_dead).sum().item()),
+            n_dead1=int((self.n_inactive_1 > self.batches_to_dead).sum().item()),
+            n_dead2=int((self.n_inactive_2 > self.batches_to_dead).sum().item()),
         )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Results]:
