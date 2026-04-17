@@ -38,6 +38,7 @@ class DeepTopK(nn.Module):
         self.batches_to_dead = cfg.batches_to_dead
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
+        self.n_batches_inactive: torch.Tensor
 
     def _update_n_inactive(self, x: torch.Tensor) -> None:
         self.n_batches_inactive += (x.sum(0) == 0).float()
