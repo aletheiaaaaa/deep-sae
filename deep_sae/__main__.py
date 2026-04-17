@@ -18,13 +18,16 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--d_feat", default=4608, type=int)
     parser.add_argument("--k_mid", default=72, type=int)
     parser.add_argument("--k_feat", default=36, type=int)
+    parser.add_argument("--k_aux_mid", default=576, type=int)
+    parser.add_argument("--k_aux_feat", default=1152, type=int)
     parser.add_argument("--tokens_to_dead", default=10000000, type=int)
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
-    parser.add_argument("--run_name", default="default", type=str)
+    parser.add_argument("--run_name", default="auxilliary", type=str)
+    parser.add_argument("--aux_coeff", default=1 / 32, type=float)
 
     return parser
 
@@ -49,7 +52,10 @@ def main() -> None:
         d_feat=args.d_feat,
         k_mid=args.k_mid,
         k_feat=args.k_feat,
+        k_aux_mid=args.k_aux_mid,
+        k_aux_feat=args.k_aux_feat,
         batches_to_dead=int(args.tokens_to_dead / (args.batch_size * 128)),
+        aux_coeff=args.aux_coeff,
     )
 
     deep = DeepTopK(sae_cfg).to(device).float()

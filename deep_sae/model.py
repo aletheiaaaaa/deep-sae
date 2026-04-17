@@ -13,12 +13,17 @@ class SAEConfig:
     d_feat: int
     k_mid: int
     k_feat: int
+    k_aux_mid: int
+    k_aux_feat: int
     batches_to_dead: int
+    aux_coeff: float
 
 
 @dataclass
 class Results:
+    loss: torch.Tensor
     l2_loss: torch.Tensor
+    aux_loss: torch.Tensor
     n_dead0: int
     n_dead1: int
     n_dead2: int
@@ -41,6 +46,9 @@ class DeepTopK(nn.Module):
         self.batches_to_dead = cfg.batches_to_dead
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
+        self.k_aux_mid = cfg.k_aux_mid
+        self.k_aux_feat = cfg.k_aux_feat
+        self.aux_coeff = cfg.aux_coeff
 
         self.register_buffer("n_inactive_0", torch.zeros(cfg.d_mid))
         self.register_buffer("n_inactive_1", torch.zeros(cfg.d_feat))
@@ -61,15 +69,62 @@ class DeepTopK(nn.Module):
         topk = torch.topk(x, k, dim=-1)
         return torch.zeros_like(x).scatter(-1, topk.indices, topk.values)
 
+    def _partial_forward(self, x: torch.Tensor, idx: int):
+        if idx < 1:
+            x = self._topk(F.relu(x @ self.W_enc2 + self.b_enc2), self.k_feat)
+        if idx < 2:
+            x = self._topk(F.relu(x @ self.W_dec2 + self.b_dec2), self.k_mid)
+        if idx < 3:
+            x = F.relu(x @ self.W_dec1 + self.b_dec1)
+        return x
+
+    def _aux_loss(
+        self,
+        input: torch.Tensor,
+        recon: torch.Tensor,
+        mid0: torch.Tensor,
+        mid1: torch.Tensor,
+        mid2: torch.Tensor,
+    ) -> torch.Tensor:
+        aux_loss = torch.tensor(0, dtype=torch.float32, device=device)
+        for i, (buffer, acts, k_aux) in enumerate(
+            zip(
+                [self.n_inactive_0, self.n_inactive_1, self.n_inactive_2],
+                [mid0, mid1, mid2],
+                [self.k_aux_mid, self.k_aux_feat, self.k_aux_mid],
+                strict=True,
+            ),
+        ):
+            dead_features = buffer > self.batches_to_dead
+            if dead_features.sum() > 0:
+                residual = input - recon
+                topk_aux = torch.topk(
+                    acts[:, :, dead_features], min(k_aux, dead_features.sum()), dim=-1
+                )
+                acts_aux = torch.zeros_like(acts[:, :, dead_features]).scatter(
+                    -1, topk_aux.indices, topk_aux.values
+                )
+                recon_aux = self._partial_forward(acts_aux, i)
+                aux_loss += (recon_aux - residual).pow(2).mean()
+
+        return aux_loss
+
     def _loss_dict(
         self,
         input: torch.Tensor,
         recon: torch.Tensor,
+        mid0: torch.Tensor,
+        mid1: torch.Tensor,
+        mid2: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
+        aux_loss = self._aux_loss(input, recon, mid0, mid1, mid2)
+        loss = l2_loss + self.aux_coeff * aux_loss
 
         return Results(
+            loss=loss,
             l2_loss=l2_loss,
+            aux_loss=aux_loss,
             n_dead0=int((self.n_inactive_0 > self.batches_to_dead).sum().item()),
             n_dead1=int((self.n_inactive_1 > self.batches_to_dead).sum().item()),
             n_dead2=int((self.n_inactive_2 > self.batches_to_dead).sum().item()),
@@ -83,7 +138,7 @@ class DeepTopK(nn.Module):
         mid0 = x.clone().detach()
 
         x = self._topk(F.relu(x @ self.W_enc2 + self.b_enc2), self.k_feat)
-        mid1 = x.clone()
+        mid1 = x.clone().detach()
 
         x = self._topk(F.relu(x @ self.W_dec2 + self.b_dec2), self.k_mid)
         mid2 = x.clone().detach()
@@ -92,7 +147,7 @@ class DeepTopK(nn.Module):
 
         self._update_n_inactive(mid0, mid1, mid2)
 
-        return recon, self._loss_dict(input, recon)
+        return recon, self._loss_dict(input, recon, mid0, mid1, mid2)
 
 
 class ShallowTopK(nn.Module):
@@ -107,6 +162,8 @@ class ShallowTopK(nn.Module):
 
         self.batches_to_dead = cfg.batches_to_dead
         self.k_feat = cfg.k_feat
+        self.k_aux_feat = cfg.k_aux_feat
+        self.aux_coeff = cfg.aux_coeff
 
         self.register_buffer("n_inactive", torch.zeros(cfg.d_feat))
 
@@ -118,15 +175,41 @@ class ShallowTopK(nn.Module):
         topk = torch.topk(x, k, dim=-1)
         return torch.zeros_like(x).scatter(-1, topk.indices, topk.values)
 
+    def _aux_loss(
+        self,
+        input: torch.Tensor,
+        recon: torch.Tensor,
+        feat: torch.Tensor,
+    ) -> torch.Tensor:
+        aux_loss = torch.tensor(0, dtype=torch.float32, device=device)
+
+        dead_features = self.n_inactive > self.batches_to_dead
+        if dead_features.sum() > 0:
+            residual = input - recon
+            k_aux = min(self.k_aux_feat, dead_features.sum())
+            topk_aux = torch.topk(feat[:, :, dead_features], k_aux, dim=-1)
+            acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
+                -1, topk_aux.indices, topk_aux.values
+            )
+            recon_aux = acts_aux @ self.W_dec[dead_features] + self.b_dec[dead_features]
+            aux_loss = (recon_aux - residual).pow(2).mean()
+
+        return aux_loss
+
     def _loss_dict(
         self,
         input: torch.Tensor,
         recon: torch.Tensor,
+        feat: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
+        aux_loss = self._aux_loss(input, recon, feat)
+        loss = l2_loss + self.aux_coeff * aux_loss
 
         return Results(
+            loss=loss,
             l2_loss=l2_loss,
+            aux_loss=aux_loss,
             n_dead0=0,
             n_dead1=int((self.n_inactive > self.batches_to_dead).sum().item()),
             n_dead2=0,
@@ -143,4 +226,4 @@ class ShallowTopK(nn.Module):
 
         self._update_n_inactive(feat)
 
-        return recon, self._loss_dict(input, recon)
+        return recon, self._loss_dict(input, recon, feat)
