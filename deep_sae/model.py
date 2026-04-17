@@ -49,11 +49,11 @@ class DeepTopK(nn.Module):
         self, mid0: torch.Tensor, mid1: torch.Tensor, mid2: torch.Tensor
     ) -> None:
         for counter, act in zip(self.n_inactive_layers, [mid0, mid1, mid2], strict=True):
-            counter += (act.sum(0) == 0).float()
-            counter[act.sum(0) > 0] = 0
+            counter += (act.sum((0, 1)) == 0).float()
+            counter[act.sum((0, 1)) > 0] = 0
 
     def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
-        topk = torch.topk(x.flatten(), k * x.shape[0])
+        topk = torch.topk(x.flatten(), k * x.shape[0] * x.shape[1])
         return torch.zeros_like(x.flatten()).scatter(-1, topk.indices, topk.values).reshape(x.shape)
 
     def _loss_dict(
