@@ -18,7 +18,7 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--d_feat", default=4608, type=int)
     parser.add_argument("--k_mid", default=144, type=int)
     parser.add_argument("--k_feat", default=72, type=int)
-    parser.add_argument("--batches_to_dead", default=1000000, type=int)
+    parser.add_argument("--tokens_to_dead", default=1000000, type=int)
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
@@ -47,7 +47,7 @@ def main() -> None:
         d_feat=args.d_feat,
         k_mid=args.k_mid,
         k_feat=args.k_feat,
-        batches_to_dead=args.batches_to_dead,
+        batches_to_dead=int(args.tokens_to_dead / (args.batch_size * 128)),
     )
 
     deep = DeepTopK(sae_cfg).to(device).float()
