@@ -40,9 +40,9 @@ class DeepTopK(nn.Module):
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
         self.n_inactive_layers = [
-            torch.zeros(cfg.k_mid),
-            torch.zeros(cfg.k_feat),
-            torch.zeros(cfg.k_mid),
+            torch.zeros(cfg.d_mid),
+            torch.zeros(cfg.d_feat),
+            torch.zeros(cfg.d_mid),
         ]
 
     def _update_n_inactive(
