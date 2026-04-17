@@ -76,6 +76,7 @@ class DeepTopK(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Results]:
+        x = x.float()
         input = x.clone().detach()
 
         x = self._topk(F.relu(x @ self.W_enc1 + self.b_enc1), self.k_mid)

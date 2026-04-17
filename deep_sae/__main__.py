@@ -22,7 +22,7 @@ def make_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
-    parser.add_argument("--frac_inactive", default=0.0, type=float)
+    parser.add_argument("--frac_inactive", default=0.5, type=float)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="./sae", type=str)
 
@@ -52,7 +52,7 @@ def main() -> None:
         batches_to_dead=args.batches_to_dead,
     )
 
-    sae = DeepTopK(sae_cfg).to(device).half()
+    sae = DeepTopK(sae_cfg).to(device).float()
 
     train(sae, train_cfg)
 
