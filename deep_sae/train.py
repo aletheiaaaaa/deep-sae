@@ -76,7 +76,7 @@ def train(sae: DeepTopK, train_cfg: TrainConfig) -> None:
         attention_mask = torch.tensor(batch["attention_mask"], device=device)
 
         with model.trace(input_ids, attention_mask=attention_mask):
-            hidden = model.model.layers[train_cfg.layer].output[0].save()
+            hidden = model.model.layers[train_cfg.layer].output.save()
 
         print(hidden.shape)
         _, loss_dict = sae(hidden)
