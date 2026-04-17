@@ -16,8 +16,8 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--d_model", default=1152, type=int)
     parser.add_argument("--d_mid", default=2304, type=int)
     parser.add_argument("--d_feat", default=4608, type=int)
-    parser.add_argument("--k_mid", default=144, type=int)
-    parser.add_argument("--k_feat", default=72, type=int)
+    parser.add_argument("--k_mid", default=72, type=int)
+    parser.add_argument("--k_feat", default=36, type=int)
     parser.add_argument("--tokens_to_dead", default=10000000, type=int)
 
     parser.add_argument("--lr", default=1e-4, type=float)
