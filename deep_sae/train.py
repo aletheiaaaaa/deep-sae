@@ -69,8 +69,9 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
         with model.trace(input_ids, attention_mask=attention_mask):
             hidden = model.model.layers[train_cfg.layer].output.save()
 
-        _, dict_deep = deep(hidden)
-        _, dict_shallow = shallow(hidden)
+        h = hidden.detach()
+        _, dict_deep = deep(h.clone())
+        _, dict_shallow = shallow(h.clone())
 
         deep_optim.zero_grad()
         dict_deep.l2_loss.backward()
