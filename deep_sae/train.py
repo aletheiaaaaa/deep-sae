@@ -98,7 +98,6 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
                 },
                 step=i,
             )
-            tqdm.write(f"Step {i + 1} | loss: {dict_deep.l2_loss.item():.4f} | ")
 
     wandb.finish()
 
