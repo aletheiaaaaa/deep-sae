@@ -69,13 +69,20 @@ class DeepTopK(nn.Module):
         topk = torch.topk(x, k, dim=-1)
         return torch.zeros_like(x).scatter(-1, topk.indices, topk.values)
 
-    def _partial_forward(self, x: torch.Tensor, idx: int):
-        if idx < 1:
-            x = self._topk(F.relu(x @ self.W_enc2 + self.b_enc2), self.k_feat)
-        if idx < 2:
-            x = self._topk(F.relu(x @ self.W_dec2 + self.b_dec2), self.k_mid)
-        if idx < 3:
-            x = F.relu(x @ self.W_dec1 + self.b_dec1)
+    def _partial_forward(self, x: torch.Tensor, dead_feats: torch.Tensor, idx: int):
+        layers = [
+            (self.W_enc2, self.b_enc2, self.k_feat),
+            (self.W_dec2, self.b_dec2, self.k_mid),
+            (self.W_dec1, self.b_dec1, None),
+        ]
+        for i, (W, b, k) in enumerate(layers):
+            if idx <= i:
+                continue
+            W_i = W[dead_feats] if i == 0 else W
+            b_i = b[dead_feats] if i == 0 else b
+            x = F.relu(x @ W_i + b_i)
+            if k is not None:
+                x = self._topk(x, k)
         return x
 
     def _aux_loss(
