@@ -76,13 +76,11 @@ class DeepTopK(nn.Module):
             (self.W_dec1, self.b_dec1, None),
         ]
         for i, (W, b, k) in enumerate(layers):
-            if idx <= i:
+            if i < idx:
                 continue
-            W_i = W[dead_feats] if i == 0 else W
-            b_i = b[dead_feats] if i == 0 else b
-            x = F.relu(x @ W_i + b_i)
+            W_i = W[dead_feats] if i == idx else W
             if k is not None:
-                x = self._topk(x, k)
+                x = self._topk(x @ W_i + b, k)
         return x
 
     def _aux_loss(
