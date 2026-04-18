@@ -79,8 +79,9 @@ class DeepTopK(nn.Module):
             if i < idx:
                 continue
             W_i = W[dead_feats] if i == idx else W
+            x = x @ W_i + b
             if k is not None:
-                x = self._topk(x @ W_i + b, k)
+                x = self._topk(F.relu(x), k)
         return x
 
     def _aux_loss(
