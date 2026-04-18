@@ -111,7 +111,7 @@ class DeepTopK(nn.Module):
                 acts_aux = torch.zeros_like(acts[:, :, dead_features]).scatter(
                     -1, topk_aux.indices, topk_aux.values
                 )
-                recon_aux = self._partial_forward(acts_aux, i)
+                recon_aux = self._partial_forward(acts_aux, dead_features, i)
                 aux_loss += (recon_aux - residual).pow(2).mean()
 
         return aux_loss
