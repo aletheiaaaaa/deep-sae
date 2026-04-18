@@ -79,9 +79,11 @@ class DeepTopK(nn.Module):
             if i < idx:
                 continue
             W_i = W[dead_feats] if i == idx else W
-            x = x @ W_i + b
             if k is not None:
-                x = self._topk(F.relu(x), k)
+                x = self._topk(F.relu(x @ W_i + b), k)
+            else:
+                x = x @ W_i
+
         return x
 
     def _aux_loss(
@@ -201,7 +203,7 @@ class ShallowTopK(nn.Module):
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values
             )
-            recon_aux = acts_aux @ self.W_dec[dead_features] + self.b_dec
+            recon_aux = acts_aux @ self.W_dec[dead_features]
             aux_loss = (recon_aux - residual).pow(2).mean()
 
         return aux_loss
@@ -229,11 +231,13 @@ class ShallowTopK(nn.Module):
         x = x.float()
         input = x.clone().detach()
 
-        x = self._topk(F.relu(x @ self.W_enc + self.b_enc), self.k_feat)
-        feat = x.clone().detach()
+        pre = F.relu(x @ self.W_enc + self.b_enc)
+        x = self._topk(pre, self.k_feat)
+        feat = x
 
         recon = x @ self.W_dec + self.b_dec
 
-        self._update_n_inactive(feat)
+        with torch.no_grad():
+            self._update_n_inactive(feat)
 
-        return recon, self._loss_dict(input, recon, feat)
+        return recon, self._loss_dict(input, recon, pre)
