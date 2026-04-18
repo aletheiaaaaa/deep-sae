@@ -140,20 +140,24 @@ class DeepTopK(nn.Module):
         x = x.float()
         input = x.clone().detach()
 
-        x = self._topk(F.relu(x @ self.W_enc1 + self.b_enc1), self.k_mid)
-        mid0 = x.clone().detach()
+        pre0 = F.relu(x @ self.W_enc1 + self.b_enc1)
+        x = self._topk(pre0, self.k_mid)
+        mid0 = x
 
-        x = self._topk(F.relu(x @ self.W_enc2 + self.b_enc2), self.k_feat)
-        mid1 = x.clone().detach()
+        pre1 = F.relu(x @ self.W_enc2 + self.b_enc2)
+        x = self._topk(pre1, self.k_feat)
+        mid1 = x
 
-        x = self._topk(F.relu(x @ self.W_dec2 + self.b_dec2), self.k_mid)
-        mid2 = x.clone().detach()
+        pre2 = F.relu(x @ self.W_dec2 + self.b_dec2)
+        x = self._topk(pre2, self.k_mid)
+        mid2 = x
 
         recon = x @ self.W_dec1 + self.b_dec1
 
-        self._update_n_inactive(mid0, mid1, mid2)
+        with torch.no_grad():
+            self._update_n_inactive(mid0, mid1, mid2)
 
-        return recon, self._loss_dict(input, recon, mid0, mid1, mid2)
+        return recon, self._loss_dict(input, recon, pre0, pre1, pre2)
 
 
 class ShallowTopK(nn.Module):
