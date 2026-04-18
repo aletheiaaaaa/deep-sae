@@ -100,10 +100,11 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
             )
             tqdm.write(f"Step {i + 1} | loss: {dict_deep.l2_loss.item():.4f} | ")
 
+    wandb.finish()
+
     os.makedirs(train_cfg.save_path, exist_ok=True)
-
     save_path = os.path.join(train_cfg.save_path, train_cfg.run_name)
-
     torch.save(deep.state_dict(), f"{save_path}_deep.pt")
     torch.save(shallow.state_dict(), f"{save_path}_shallow.pt")
+
     print(f"Saved SAEs at {save_path}_{{deep/shallow}}.pt trained on {tokens_seen}")
