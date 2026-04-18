@@ -197,7 +197,7 @@ class ShallowTopK(nn.Module):
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values
             )
-            recon_aux = acts_aux @ self.W_dec[dead_features] + self.b_dec[dead_features]
+            recon_aux = acts_aux @ self.W_dec[dead_features] + self.b_dec
             aux_loss = (recon_aux - residual).pow(2).mean()
 
         return aux_loss
