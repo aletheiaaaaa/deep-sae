@@ -15,6 +15,8 @@ def make_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--mid_expand", default=2, type=float)
     parser.add_argument("--feat_expand", default=4, type=float)
+    parser.add_argument("--mid_l0", default=144, type=int)
+    parser.add_argument("--feat_l0", default=72, type=int)
     parser.add_argument("--bandwidth", default=1e-3, type=float)
     parser.add_argument("--tokens_to_dead", default=1e7, type=int)
 
@@ -48,6 +50,8 @@ def main() -> None:
         d_model=1152,
         d_mid=args.mid_expand * 1152,
         d_feat=args.feat_expand * 1152,
+        mid_l0=args.mid_l0,
+        feat_l0=args.feat_l0,
         bandwidth=args.bandwidth,
         batches_to_dead=int(args.tokens_to_dead / (args.batch_size * 128)),
         l0_coeff=args.l0_coeff,

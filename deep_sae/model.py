@@ -10,6 +10,8 @@ class SAEConfig:
     d_model: int
     d_mid: int
     d_feat: int
+    mid_l0: int
+    feat_l0: int
     bandwidth: float
     batches_to_dead: int
     l0_coeff: float
@@ -105,7 +107,8 @@ class DeepSAE(nn.Module):
         self.jumprelu2 = JumpReLU(cfg.d_mid, cfg.bandwidth)
 
         self.bandwidth = cfg.bandwidth
-        self.l0_coeff = cfg.l0_coeff
+        self.mid_l0 = cfg.mid_l0
+        self.feat_l0 = cfg.feat_l0
 
         self.batches_to_dead = cfg.batches_to_dead
 
@@ -131,12 +134,15 @@ class DeepSAE(nn.Module):
         mid2: torch.Tensor,
     ) -> torch.Tensor:
         l0_loss = torch.tensor(0.0, device=device)
-        for act, thresh in zip(
+        for act, thresh, k in zip(
             [mid0, mid1, mid2],
             [self.jumprelu0.thresh, self.jumprelu1.thresh, self.jumprelu2.thresh],
+            [self.mid_l0, self.feat_l0, self.mid_l0],
             strict=True,
         ):
-            l0_loss += StepFunction.apply(act, thresh, self.bandwidth).sum(-1).mean()
+            l0_loss += self.l0_coeff * (
+                (StepFunction.apply(act, thresh, self.bandwidth).sum(-1).mean() / k) - 1
+            ).pow(2)
 
         return l0_loss
 
@@ -150,7 +156,7 @@ class DeepSAE(nn.Module):
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
         l0_loss = self._l0_loss(mid0, mid1, mid2)
-        loss = l2_loss + self.l0_coeff * l0_loss
+        loss = l2_loss + l0_loss
 
         return Results(
             loss=loss,
@@ -190,6 +196,7 @@ class ShallowSAE(nn.Module):
 
         self.batches_to_dead = cfg.batches_to_dead
         self.bandwidth = cfg.bandwidth
+        self.feat_l0 = cfg.feat_l0
         self.l0_coeff = cfg.l0_coeff
 
         self.register_buffer("n_inactive", torch.zeros(cfg.d_feat))
@@ -205,8 +212,14 @@ class ShallowSAE(nn.Module):
         feat: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
-        l0_loss = StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(-1).mean()
-        loss = l2_loss + self.l0_coeff * l0_loss
+        l0_loss = self.l0_coeff * (
+            (
+                StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(-1).mean()
+                / self.feat_l0
+            )
+            - 1
+        ).pow(2)
+        loss = l2_loss + l0_loss
 
         return Results(
             loss=loss,
