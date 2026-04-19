@@ -1,7 +1,7 @@
 import argparse
 
 from .train import TrainConfig, train
-from .model import SAEConfig, DeepTopK, ShallowTopK, device
+from .model import SAEConfig, DeepSAE, ShallowSAE, device
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -13,21 +13,17 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--layer", default=10, type=int)
     parser.add_argument("--dataset", default="Skylion007/openwebtext", type=str)
 
-    parser.add_argument("--d_model", default=1152, type=int)
-    parser.add_argument("--d_mid", default=2304, type=int)
-    parser.add_argument("--d_feat", default=4608, type=int)
-    parser.add_argument("--k_mid", default=144, type=int)
-    parser.add_argument("--k_feat", default=36, type=int)
-    parser.add_argument("--k_aux_mid", default=288, type=int)
-    parser.add_argument("--k_aux_feat", default=576, type=int)
-    parser.add_argument("--tokens_to_dead", default=10000000, type=int)
+    parser.add_argument("--mid_expand", default=2, type=float)
+    parser.add_argument("--feat_expand", default=4, type=float)
+    parser.add_argument("--bandwidth", default=1e-3, type=float)
+    parser.add_argument("--tokens_to_dead", default=1e7, type=int)
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
     parser.add_argument("--run_name", default="default", type=str)
-    parser.add_argument("--aux_coeff", default=1.0, type=float)
+    parser.add_argument("--l0_coeff", default=1.0, type=float)
 
     return parser
 
@@ -46,20 +42,19 @@ def main() -> None:
         run_name=args.run_name,
     )
 
+    # TODO: clean this up when making public
+
     sae_cfg = SAEConfig(
-        d_model=args.d_model,
-        d_mid=args.d_mid,
-        d_feat=args.d_feat,
-        k_mid=args.k_mid,
-        k_feat=args.k_feat,
-        k_aux_mid=args.k_aux_mid,
-        k_aux_feat=args.k_aux_feat,
+        d_model=1152,
+        d_mid=args.mid_expand * 1152,
+        d_feat=args.feat_expand * 1152,
+        bandwidth=args.bandwidth,
         batches_to_dead=int(args.tokens_to_dead / (args.batch_size * 128)),
-        aux_coeff=args.aux_coeff,
+        l0_coeff=args.l0_coeff,
     )
 
-    deep = DeepTopK(sae_cfg).to(device).float()
-    shallow = ShallowTopK(sae_cfg).to(device).float()
+    deep = DeepSAE(sae_cfg).to(device).float()
+    shallow = ShallowSAE(sae_cfg).to(device).float()
 
     train(deep, shallow, train_cfg)
 

@@ -71,6 +71,9 @@ def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
             hidden = model.model.layers[train_cfg.layer].output.save()
 
         h = hidden.detach()
+        mask = attention_mask.bool()
+        h = h[mask]
+
         _, dict_deep = deep(h.clone())
         _, dict_shallow = shallow(h.clone())
 
