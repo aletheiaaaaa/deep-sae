@@ -25,7 +25,7 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
     parser.add_argument("--run_name", default="jumprelu", type=str)
-    parser.add_argument("--l0_coeff", default=2e-3, type=float)
+    parser.add_argument("--l0_coeff", default=1.0, type=float)
 
     return parser
 
