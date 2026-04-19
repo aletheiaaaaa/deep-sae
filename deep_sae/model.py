@@ -131,13 +131,12 @@ class DeepSAE(nn.Module):
         mid2: torch.Tensor,
     ) -> torch.Tensor:
         l0_loss = torch.tensor(0.0, device=device)
-        for act, thresh, bw in zip(
+        for act, thresh in zip(
             [mid0, mid1, mid2],
             [self.jumprelu0.thresh, self.jumprelu1.thresh, self.jumprelu2.thresh],
-            [self.bandwidth, self.bw_feat, self.bandwidth],
             strict=True,
         ):
-            l0_loss += StepFunction.apply(act, thresh, bw).sum(-1).mean()
+            l0_loss += StepFunction.apply(act, thresh, self.bandwidth).sum(-1).mean()
 
         return l0_loss
 
