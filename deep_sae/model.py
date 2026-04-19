@@ -43,6 +43,9 @@ class DeepTopK(nn.Module):
         self.W_dec2 = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_mid)))
         self.W_dec1 = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_mid, cfg.d_model)))
 
+        self.W_dec1.data[:] = self.W_enc1.t().data
+        self.W_dec2.data[:] = self.W_enc2.t().data
+
         self.batches_to_dead = cfg.batches_to_dead
         self.k_mid = cfg.k_mid
         self.k_feat = cfg.k_feat
@@ -171,6 +174,8 @@ class ShallowTopK(nn.Module):
 
         self.b_dec = nn.Parameter(torch.zeros(cfg.d_model))
         self.W_dec = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_model)))
+
+        self.W_dec.data[:] = self.W_enc.t().data
 
         self.batches_to_dead = cfg.batches_to_dead
         self.k_feat = cfg.k_feat
