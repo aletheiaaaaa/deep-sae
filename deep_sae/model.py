@@ -118,7 +118,7 @@ class DeepTopK(nn.Module):
                     -1, topk_aux.indices, topk_aux.values
                 )
                 recon_aux = self._partial_forward(acts_aux, dead_features, i)
-                aux_loss += self.aux_coeff * scale * (recon_aux - residual).pow(2).sum(-1).mean()
+                aux_loss += self.aux_coeff * scale * (recon_aux - residual).pow(2).mean()
 
         return aux_loss
 
@@ -130,7 +130,7 @@ class DeepTopK(nn.Module):
         mid1: torch.Tensor,
         mid2: torch.Tensor,
     ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).sum(-1).mean()
+        l2_loss = (recon.float() - input.float()).pow(2).mean()
         aux_loss = self._aux_loss(input, recon, mid0, mid1, mid2)
         loss = l2_loss + aux_loss
 
@@ -213,7 +213,7 @@ class ShallowTopK(nn.Module):
                 -1, topk_aux.indices, topk_aux.values
             )
             recon_aux = acts_aux @ self.W_dec[dead_features]
-            aux_loss = self.aux_coeff * scale * (recon_aux - residual).pow(2).sum(-1).mean()
+            aux_loss = self.aux_coeff * scale * (recon_aux - residual).pow(2).mean()
 
         return aux_loss
 
