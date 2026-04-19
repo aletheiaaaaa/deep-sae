@@ -213,7 +213,7 @@ class ShallowSAE(nn.Module):
         feat: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
-        l0_loss = (
+        l0_loss = self.l0_coeff * (
             (
                 StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(-1).mean()
                 / self.feat_l0
