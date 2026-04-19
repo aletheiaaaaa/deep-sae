@@ -141,7 +141,7 @@ class DeepSAE(nn.Module):
             [self.mid_l0, self.feat_l0, self.mid_l0],
             strict=True,
         ):
-            l0_loss += self.l0_coeff * (
+            l0_loss += (
                 (StepFunction.apply(act, thresh, self.bandwidth).sum(-1).mean() / k) - 1
             ).pow(2)
 
@@ -157,7 +157,7 @@ class DeepSAE(nn.Module):
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
         l0_loss = self._l0_loss(mid0, mid1, mid2)
-        loss = l2_loss + l0_loss
+        loss = l2_loss + self.l0_coeff * l0_loss
 
         return Results(
             loss=loss,
@@ -213,14 +213,14 @@ class ShallowSAE(nn.Module):
         feat: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
-        l0_loss = self.l0_coeff * (
+        l0_loss = (
             (
                 StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(-1).mean()
                 / self.feat_l0
             )
             - 1
         ).pow(2)
-        loss = l2_loss + l0_loss
+        loss = l2_loss + self.l0_coeff * l0_loss
 
         return Results(
             loss=loss,
