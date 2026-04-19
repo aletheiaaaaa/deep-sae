@@ -26,8 +26,8 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
-    parser.add_argument("--run_name", default="initialize", type=str)
-    parser.add_argument("--aux_coeff", default=1 / 32, type=float)
+    parser.add_argument("--run_name", default="default", type=str)
+    parser.add_argument("--aux_coeff", default=1.0, type=float)
 
     return parser
 
