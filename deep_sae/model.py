@@ -109,6 +109,7 @@ class DeepSAE(nn.Module):
         self.bandwidth = cfg.bandwidth
         self.mid_l0 = cfg.mid_l0
         self.feat_l0 = cfg.feat_l0
+        self.l0_coeff = cfg.l0_coeff
 
         self.batches_to_dead = cfg.batches_to_dead
 
@@ -212,7 +213,7 @@ class ShallowSAE(nn.Module):
         feat: torch.Tensor,
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
-        l0_loss = self.l0_coeff * (
+        l0_loss = (
             (
                 StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(-1).mean()
                 / self.feat_l0
