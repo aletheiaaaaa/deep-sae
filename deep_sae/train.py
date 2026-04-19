@@ -9,7 +9,7 @@ from nnsight import LanguageModel
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-from .model import DeepTopK, ShallowTopK, device
+from .model import DeepSAE, ShallowSAE, device
 
 
 @dataclass
@@ -23,7 +23,7 @@ class TrainConfig:
     run_name: str
 
 
-def train(deep: DeepTopK, shallow: ShallowTopK, train_cfg: TrainConfig) -> None:
+def train(deep: DeepSAE, shallow: ShallowSAE, train_cfg: TrainConfig) -> None:
     model = LanguageModel("google/gemma-3-1b-pt", device_map=device, torch_dtype=torch.float16)
     tokenizer = model.tokenizer
 
