@@ -107,6 +107,8 @@ class DeepTopK(nn.Module):
             ),
         ):
             dead_features = buffer > self.batches_to_dead
+            scale = min(dead_features.sum() / k_aux, 1.0)
+
             if dead_features.sum() > 0:
                 residual = input - recon
                 topk_aux = torch.topk(
@@ -116,7 +118,7 @@ class DeepTopK(nn.Module):
                     -1, topk_aux.indices, topk_aux.values
                 )
                 recon_aux = self._partial_forward(acts_aux, dead_features, i)
-                aux_loss += (recon_aux - residual).pow(2).mean()
+                aux_loss += self.aux_coeff * scale * (recon_aux - residual).pow(2).sum(-1).mean()
 
         return aux_loss
 
@@ -130,7 +132,7 @@ class DeepTopK(nn.Module):
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
         aux_loss = self._aux_loss(input, recon, mid0, mid1, mid2)
-        loss = l2_loss + self.aux_coeff * aux_loss
+        loss = l2_loss + aux_loss
 
         return Results(
             loss=loss,
@@ -201,15 +203,17 @@ class ShallowTopK(nn.Module):
         aux_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
         dead_features = self.n_inactive > self.batches_to_dead
+        scale = min(dead_features.sum() / self.k_aux_feat, 1.0)
         if dead_features.sum() > 0:
             residual = input - recon
-            k_aux = min(self.k_aux_feat, dead_features.sum())
-            topk_aux = torch.topk(feat[:, :, dead_features], k_aux, dim=-1)
+            topk_aux = torch.topk(
+                feat[:, :, dead_features], min(self.k_aux_feat, dead_features.sum()), dim=-1
+            )
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values
             )
             recon_aux = acts_aux @ self.W_dec[dead_features]
-            aux_loss = (recon_aux - residual).pow(2).mean()
+            aux_loss = self.aux_coeff * scale * (recon_aux - residual).pow(2).sum(-1).mean()
 
         return aux_loss
 
@@ -221,7 +225,7 @@ class ShallowTopK(nn.Module):
     ) -> Results:
         l2_loss = (recon.float() - input.float()).pow(2).mean()
         aux_loss = self._aux_loss(input, recon, feat)
-        loss = l2_loss + self.aux_coeff * aux_loss
+        loss = l2_loss + aux_loss
 
         return Results(
             loss=loss,
