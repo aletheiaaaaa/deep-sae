@@ -130,7 +130,7 @@ class DeepTopK(nn.Module):
         mid1: torch.Tensor,
         mid2: torch.Tensor,
     ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).mean()
+        l2_loss = (recon.float() - input.float()).pow(2).sum(-1).mean()
         aux_loss = self._aux_loss(input, recon, mid0, mid1, mid2)
         loss = l2_loss + aux_loss
 
@@ -223,7 +223,7 @@ class ShallowTopK(nn.Module):
         recon: torch.Tensor,
         feat: torch.Tensor,
     ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).mean()
+        l2_loss = (recon.float() - input.float()).pow(2).sum(-1).mean()
         aux_loss = self._aux_loss(input, recon, feat)
         loss = l2_loss + aux_loss
 
