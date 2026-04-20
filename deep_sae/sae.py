@@ -126,8 +126,8 @@ class DeepSAE(nn.Module):
             [mid0, mid1, mid2],
             strict=True,
         ):
-            counter += (act.sum(0) == 0).float()
-            counter[act.sum(0) > 0] = 0
+            counter += (act.sum(dim=0) == 0).float()
+            counter[act.sum(dim=0) > 0] = 0
 
     def _l0_loss(
         self,
@@ -143,7 +143,7 @@ class DeepSAE(nn.Module):
             strict=True,
         ):
             l0_loss += (
-                (StepFunction.apply(act, thresh, self.bandwidth).sum(-1).mean() / k) - 1
+                (StepFunction.apply(act, thresh, self.bandwidth).sum(dim=-1).mean() / k) - 1
             ).pow(2)
 
         return l0_loss
@@ -156,7 +156,7 @@ class DeepSAE(nn.Module):
         mid1: torch.Tensor,
         mid2: torch.Tensor,
     ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).mean()
+        l2_loss = (recon.float() - input.float()).pow(2).sum(dim=-1).mean()
         l0_loss = self._l0_loss(mid0, mid1, mid2)
         loss = l2_loss + self.l0_coeff * l0_loss
 
@@ -204,8 +204,8 @@ class ShallowSAE(nn.Module):
         self.register_buffer("n_inactive", torch.zeros(cfg.d_feat))
 
     def _update_n_inactive(self, feat: torch.Tensor) -> None:
-        self.n_inactive += (feat.sum(0) == 0).float()
-        self.n_inactive[feat.sum(0) > 0] = 0
+        self.n_inactive += (feat.sum(dim=0) == 0).float()
+        self.n_inactive[feat.sum(dim=0) > 0] = 0
 
     def _loss_dict(
         self,
@@ -213,10 +213,10 @@ class ShallowSAE(nn.Module):
         recon: torch.Tensor,
         feat: torch.Tensor,
     ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).mean()
+        l2_loss = (recon.float() - input.float()).pow(2).sum(dim=-1).mean()
         l0_loss = (
             (
-                StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(-1).mean()
+                StepFunction.apply(feat, self.jumprelu.thresh, self.bandwidth).sum(dim=-1).mean()
                 / self.feat_l0
             )
             - 1
