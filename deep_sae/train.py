@@ -71,9 +71,6 @@ def train(deep: DeepSAE, shallow: ShallowSAE, train_cfg: TrainConfig) -> None:
             hidden = model.model.layers[train_cfg.layer].output.save()
 
         h = hidden.detach()
-        mask = attention_mask.bool()
-        h = h[mask]
-
         _, dict_deep = deep(h.clone())
         _, dict_shallow = shallow(h.clone())
 
@@ -90,16 +87,12 @@ def train(deep: DeepSAE, shallow: ShallowSAE, train_cfg: TrainConfig) -> None:
                 {
                     "deep/loss": dict_deep.loss.item(),
                     "deep/l2_loss": dict_deep.l2_loss.item(),
-                    "deep/l0_loss": dict_deep.l0_loss.item(),
-                    "deep/fvu": dict_deep.fvu,
-                    "deep/n_dead0": dict_deep.n_dead0,
-                    "deep/n_dead1": dict_deep.n_dead1,
-                    "deep/n_dead2": dict_deep.n_dead2,
+                    "deep/aux_loss": dict_deep.aux_loss.item(),
+                    "deep/n_dead": dict_deep.n_dead,
                     "shallow/loss": dict_shallow.loss.item(),
                     "shallow/l2_loss": dict_shallow.l2_loss.item(),
-                    "shallow/l0_loss": dict_shallow.l0_loss.item(),
-                    "shallow/fvu": dict_shallow.fvu,
-                    "shallow/n_dead1": dict_shallow.n_dead1,
+                    "shallow/aux_loss": dict_shallow.aux_loss.item(),
+                    "shallow/n_dead": dict_shallow.n_dead,
                 },
                 step=i,
             )
