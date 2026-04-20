@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import torch
 from torch import nn, autograd
 from torch.nn import functional as F
+from transformers.models.flava.modeling_flava import FlavaLayer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -23,6 +24,7 @@ class Results:
     loss: torch.Tensor
     l2_loss: torch.Tensor
     l0_loss: torch.Tensor
+    fvu: float
     n_dead0: int
     n_dead1: int
     n_dead2: int
@@ -160,10 +162,16 @@ class DeepSAE(nn.Module):
         l0_loss = self._l0_loss(mid0, mid1, mid2)
         loss = l2_loss + self.l0_coeff * l0_loss
 
+        with torch.no_grad():
+            var = (input.float() - input.float().mean(0, keepdim=True)).pow(2).sum(-1).mean()
+
+        fvu = l2_loss / var
+
         return Results(
             loss=loss,
             l2_loss=l2_loss,
             l0_loss=l0_loss,
+            fvu=fvu.item(),
             n_dead0=int((self.n_inactive_0 > self.batches_to_dead).sum().item()),
             n_dead1=int((self.n_inactive_1 > self.batches_to_dead).sum().item()),
             n_dead2=int((self.n_inactive_2 > self.batches_to_dead).sum().item()),
@@ -223,10 +231,16 @@ class ShallowSAE(nn.Module):
         ).pow(2)
         loss = l2_loss + self.l0_coeff * l0_loss
 
+        with torch.no_grad():
+            var = (input.float() - input.float().mean(0, keepdim=True)).pow(2).sum(-1).mean()
+
+        fvu = var / l2_loss
+
         return Results(
             loss=loss,
             l2_loss=l2_loss,
             l0_loss=l0_loss,
+            fvu=fvu.item(),
             n_dead0=0,
             n_dead1=int((self.n_inactive > self.batches_to_dead).sum().item()),
             n_dead2=0,
