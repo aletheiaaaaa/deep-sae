@@ -54,8 +54,8 @@ class DeepSAE(nn.Module):
         self.n_inactive[feat.sum((0, 1)) > 0] = 0
 
     def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
-        topk = torch.topk(x, k, dim=-1)
-        return torch.zeros_like(x).scatter(-1, topk.indices, topk.values)
+        topk = torch.topk(x.flatten(), k * x.shape[0], dim=-1)
+        return torch.zeros_like(x.flatten()).scatter(-1, topk.indices, topk.values).reshape(x.shape)
 
     def _aux_loss(
         self,
@@ -140,8 +140,8 @@ class ShallowSAE(nn.Module):
         self.n_inactive[feat.sum((0, 1)) > 0] = 0
 
     def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
-        topk = torch.topk(x, k, dim=-1)
-        return torch.zeros_like(x).scatter(-1, topk.indices, topk.values)
+        topk = torch.topk(x.flatten(), k * x.shape[0], dim=-1)
+        return torch.zeros_like(x.flatten()).scatter(-1, topk.indices, topk.values).reshape(x.shape)
 
     def _aux_loss(
         self,
