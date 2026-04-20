@@ -13,10 +13,10 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--layer", default=10, type=int)
     parser.add_argument("--dataset", default="Skylion007/openwebtext", type=str)
 
-    parser.add_argument("--mid_expand", default=2, type=float)
-    parser.add_argument("--feat_expand", default=4, type=float)
-    parser.add_argument("--mid_l0", default=144, type=int)
-    parser.add_argument("--feat_l0", default=72, type=int)
+    parser.add_argument("--mid_expand", default=8, type=float)
+    parser.add_argument("--feat_expand", default=32, type=float)
+    parser.add_argument("--mid_l0", default=576, type=int)
+    parser.add_argument("--feat_l0", default=288, type=int)
     parser.add_argument("--bandwidth", default=1e-3, type=float)
     parser.add_argument("--tokens_to_dead", default=1e7, type=int)
 
