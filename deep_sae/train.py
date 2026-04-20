@@ -9,7 +9,7 @@ from nnsight import LanguageModel
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 
-from .model import DeepSAE, ShallowSAE, device
+from .sae import DeepSAE, ShallowSAE, device
 
 
 @dataclass
