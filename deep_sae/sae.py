@@ -158,7 +158,7 @@ class DeepSAE(nn.Module):
         mid1: torch.Tensor,
         mid2: torch.Tensor,
     ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).sum(-1).mean()
+        l2_loss = (recon.float() - input.float()).pow(2).sum(-1_mean()
         l0_loss = self._l0_loss(mid0, mid1, mid2)
         loss = l2_loss + self.l0_coeff * l0_loss
 
@@ -234,7 +234,7 @@ class ShallowSAE(nn.Module):
         with torch.no_grad():
             var = (input.float() - input.float().mean(0, keepdim=True)).pow(2).sum(-1).mean()
 
-        fvu = var / l2_loss
+        fvu = l2_loss / var
 
         return Results(
             loss=loss,
