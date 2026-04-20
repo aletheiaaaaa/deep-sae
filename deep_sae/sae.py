@@ -66,11 +66,11 @@ class DeepSAE(nn.Module):
         aux_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
         dead_features = self.n_inactive > self.batches_to_dead
-        scale = min(dead_features.sum() / self.k_aux_feat, 1.0)
+        scale = min(dead_features.sum() / self.k_aux, 1.0)
         if dead_features.sum() > 0:
             residual = input - recon
             topk_aux = torch.topk(
-                feat[:, :, dead_features], min(self.k_aux_feat, dead_features.sum()), dim=-1
+                feat[:, :, dead_features], min(self.k_aux, dead_features.sum()), dim=-1
             )
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values
@@ -152,11 +152,11 @@ class ShallowSAE(nn.Module):
         aux_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
         dead_features = self.n_inactive > self.batches_to_dead
-        scale = min(dead_features.sum() / self.k_aux_feat, 1.0)
+        scale = min(dead_features.sum() / self.k_aux, 1.0)
         if dead_features.sum() > 0:
             residual = input - recon
             topk_aux = torch.topk(
-                feat[:, :, dead_features], min(self.k_aux_feat, dead_features.sum()), dim=-1
+                feat[:, :, dead_features], min(self.k_aux, dead_features.sum()), dim=-1
             )
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values
