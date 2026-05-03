@@ -13,7 +13,7 @@ from .sae import DeepSAE, ShallowSAE, device
 
 
 @dataclass
-class TrainConfig:
+class SAETrainConfig:
     lr: float
     batch_size: int
     save_path: str
@@ -23,7 +23,7 @@ class TrainConfig:
     run_name: str
 
 
-def train(deep: DeepSAE, shallow: ShallowSAE, train_cfg: TrainConfig) -> None:
+def train_sae(deep: DeepSAE, shallow: ShallowSAE, train_cfg: SAETrainConfig) -> None:
     model = LanguageModel("google/gemma-3-1b-pt", device_map=device, torch_dtype=torch.float16)
     tokenizer = model.tokenizer
 
@@ -33,7 +33,7 @@ def train(deep: DeepSAE, shallow: ShallowSAE, train_cfg: TrainConfig) -> None:
         streaming=True,
     )
 
-    def tokenize(examples):
+    def tokenize(examples: dict) -> dict:
         enc = tokenizer(
             examples["text"],
             max_length=128,

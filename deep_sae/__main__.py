@@ -1,10 +1,10 @@
 import argparse
 
-from .train import TrainConfig, train
+from .train import SAETrainConfig, train_sae
 from .sae import SAEConfig, DeepSAE, ShallowSAE, device
 
 
-def make_parser() -> argparse.ArgumentParser:
+def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="Deep SAE experimentation",
         description="Trains and evaluates a deep vs shallow SAE on real-world transformers",
@@ -27,14 +27,13 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run_name", default="batchtopk", type=str)
     parser.add_argument("--aux_coeff", default=1.0, type=float)
 
-    return parser
+    return parser.parse_args()
 
 
 def main() -> None:
-    parser = make_parser()
-    args = parser.parse_args()
+    args = get_args()
 
-    train_cfg = TrainConfig(
+    sae_train_cfg = SAETrainConfig(
         lr=args.lr,
         batch_size=args.batch_size,
         save_path=args.save_path,
@@ -54,10 +53,10 @@ def main() -> None:
         aux_coeff=args.aux_coeff,
     )
 
-    deep = DeepSAE(sae_cfg).to(device).float()
-    shallow = ShallowSAE(sae_cfg).to(device).float()
+    deep_sae = DeepSAE(sae_cfg).to(device).float()
+    shallow_sae = ShallowSAE(sae_cfg).to(device).float()
 
-    train(deep, shallow, train_cfg)
+    train_sae(deep_sae, shallow_sae, sae_train_cfg)
 
 
 if __name__ == "__main__":
