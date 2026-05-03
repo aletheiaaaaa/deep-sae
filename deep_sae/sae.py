@@ -37,10 +37,12 @@ class DeepSAE(nn.Module):
         self.enc_W = nn.ParameterList()
         self.enc_b = nn.ParameterList()
         for i in range(n):
-            W = nn.init.kaiming_uniform_(
-                torch.empty(layer_sizes[i + 1], layer_sizes[i])
-            ).t().contiguous()
-            self.enc_W.append(nn.Parameter(W))
+            wt = (
+                nn.init.kaiming_uniform_(torch.empty(layer_sizes[i + 1], layer_sizes[i]))
+                .t()
+                .contiguous()
+            )
+            self.enc_W.append(nn.Parameter(wt))
             self.enc_b.append(nn.Parameter(torch.zeros(layer_sizes[i + 1])))
 
         self.dec_W = nn.ParameterList()
@@ -96,8 +98,8 @@ class DeepSAE(nn.Module):
             )
             h = acts_aux
             for i in range(self.n_blocks):
-                W = self.dec_W[0][dead_features] if i == 0 else self.dec_W[i]
-                h = h @ W
+                wt = self.dec_W[0][dead_features] if i == 0 else self.dec_W[i]
+                h = h @ wt
                 if i < self.n_blocks - 1:
                     h = F.relu(h + self.dec_b[i])
             aux_loss = self.aux_coeff * scale * (h - residual).pow(2).mean()
@@ -121,15 +123,15 @@ class DeepSAE(nn.Module):
             n_dead=int((self.n_inactive > self.batches_to_dead).sum().item()),
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Results]:
+    def forward(self, x):
         x = x.float()
         input = x.clone().detach()
 
         h = input
-        for i in range(self.n_blocks):
+        for i in range(self.n_blocks - 1):
             h = F.relu(h @ self.enc_W[i] + self.enc_b[i])
-        pre = h
-        feat = self._topk(pre, self.k_feat)
+        pre = h @ self.enc_W[-1] + self.enc_b[-1]
+        feat = self._topk(F.relu(pre), self.k_feat)
 
         h = feat
         for i in range(self.n_blocks):

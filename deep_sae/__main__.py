@@ -25,7 +25,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
-    parser.add_argument("--run_name", default="batchtopk", type=str)
+    parser.add_argument("--run_name", default="batchtopk_fixed", type=str)
     parser.add_argument("--aux_coeff", default=6.0, type=float)
 
     return parser.parse_args()
