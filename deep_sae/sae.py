@@ -128,9 +128,11 @@ class DeepSAE(nn.Module):
         input = x.clone().detach()
 
         h = input
-        for i in range(self.n_blocks - 1):
-            h = F.relu(h @ self.enc_W[i] + self.enc_b[i])
-        pre = h @ self.enc_W[-1] + self.enc_b[-1]
+        for i in range(self.n_blocks):
+            h = h @ self.enc_W[i] + self.enc_b[i]
+            if i < self.n_blocks - 1:
+                h = F.relu(h)
+        pre = h
         feat = self._topk(F.relu(pre), self.k_feat)
 
         h = feat
