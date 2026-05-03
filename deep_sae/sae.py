@@ -31,13 +31,17 @@ class DeepSAE(nn.Module):
 
         self.b_enc1 = nn.Parameter(torch.zeros(cfg.d_mid))
         self.b_enc2 = nn.Parameter(torch.zeros(cfg.d_feat))
-        self.W_enc1 = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_model, cfg.d_mid)))
-        self.W_enc2 = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_mid, cfg.d_feat)))
+        self.W_enc1 = nn.Parameter(
+            nn.init.kaiming_uniform_(torch.empty(cfg.d_mid, cfg.d_model)).t().contiguous()
+        )
+        self.W_enc2 = nn.Parameter(
+            nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_mid)).t().contiguous()
+        )
 
         self.b_dec2 = nn.Parameter(torch.zeros(cfg.d_mid))
         self.b_dec1 = nn.Parameter(torch.zeros(cfg.d_model))
-        self.W_dec2 = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_mid)))
-        self.W_dec1 = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_mid, cfg.d_model)))
+        self.W_dec2 = nn.Parameter(torch.empty(cfg.d_feat, cfg.d_mid))
+        self.W_dec1 = nn.Parameter(torch.empty(cfg.d_mid, cfg.d_model))
 
         self.W_dec1.data[:] = self.W_enc1.t().data
         self.W_dec2.data[:] = self.W_enc2.t().data
@@ -54,8 +58,12 @@ class DeepSAE(nn.Module):
         self.n_inactive[feat.sum((0, 1)) > 0] = 0
 
     def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
-        topk = torch.topk(x.flatten(), k * x.shape[0], dim=-1)
-        return torch.zeros_like(x.flatten()).scatter(-1, topk.indices, topk.values).reshape(x.shape)
+        topk = torch.topk(x.flatten(), k * x.shape[0] * x.shape[1], dim=-1)
+        return (
+            torch.zeros_like(x.flatten())
+            .scatter(-1, topk.indices, topk.values)
+            .reshape(x.shape)
+        )
 
     def _aux_loss(
         self,
@@ -70,12 +78,16 @@ class DeepSAE(nn.Module):
         if dead_features.sum() > 0:
             residual = input - recon
             topk_aux = torch.topk(
-                feat[:, :, dead_features], min(self.k_aux, dead_features.sum()), dim=-1
+                feat[:, :, dead_features],
+                min(self.k_aux, int(dead_features.sum().item())),
+                dim=-1,
             )
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values
             )
-            recon_aux = F.relu(acts_aux @ self.W_dec2[dead_features] + self.b_dec2) @ self.W_dec1
+            recon_aux = (
+                F.relu(acts_aux @ self.W_dec2[dead_features] + self.b_dec2) @ self.W_dec1
+            )
             aux_loss = self.aux_coeff * scale * (recon_aux - residual).pow(2).mean()
 
         return aux_loss
@@ -121,10 +133,14 @@ class ShallowSAE(nn.Module):
         super().__init__()
 
         self.b_enc = nn.Parameter(torch.zeros(cfg.d_feat))
-        self.W_enc = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_model, cfg.d_feat)))
+        self.W_enc = nn.Parameter(
+            nn.init.kaiming_uniform_(torch.empty(cfg.d_model, cfg.d_feat))
+        )
 
         self.b_dec = nn.Parameter(torch.zeros(cfg.d_model))
-        self.W_dec = nn.Parameter(nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_model)))
+        self.W_dec = nn.Parameter(
+            nn.init.kaiming_uniform_(torch.empty(cfg.d_feat, cfg.d_model))
+        )
 
         self.W_dec.data[:] = self.W_enc.t().data
 
@@ -140,8 +156,12 @@ class ShallowSAE(nn.Module):
         self.n_inactive[feat.sum((0, 1)) > 0] = 0
 
     def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
-        topk = torch.topk(x.flatten(), k * x.shape[0], dim=-1)
-        return torch.zeros_like(x.flatten()).scatter(-1, topk.indices, topk.values).reshape(x.shape)
+        topk = torch.topk(x.flatten(), k * x.shape[0] * x.shape[1], dim=-1)
+        return (
+            torch.zeros_like(x.flatten())
+            .scatter(-1, topk.indices, topk.values)
+            .reshape(x.shape)
+        )
 
     def _aux_loss(
         self,
@@ -156,7 +176,9 @@ class ShallowSAE(nn.Module):
         if dead_features.sum() > 0:
             residual = input - recon
             topk_aux = torch.topk(
-                feat[:, :, dead_features], min(self.k_aux, dead_features.sum()), dim=-1
+                feat[:, :, dead_features],
+                min(self.k_aux, int(dead_features.sum().item())),
+                dim=-1,
             )
             acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
                 -1, topk_aux.indices, topk_aux.values

@@ -1,6 +1,6 @@
 import argparse
 
-from .train import SAETrainConfig, train_sae
+from .train import TrainConfig, train_sae
 from .sae import SAEConfig, DeepSAE, ShallowSAE, device
 
 
@@ -33,7 +33,7 @@ def get_args() -> argparse.Namespace:
 def main() -> None:
     args = get_args()
 
-    sae_train_cfg = SAETrainConfig(
+    train_cfg = TrainConfig(
         lr=args.lr,
         batch_size=args.batch_size,
         save_path=args.save_path,
@@ -53,10 +53,10 @@ def main() -> None:
         aux_coeff=args.aux_coeff,
     )
 
-    deep_sae = DeepSAE(sae_cfg).to(device).float()
-    shallow_sae = ShallowSAE(sae_cfg).to(device).float()
+    deep = DeepSAE(sae_cfg).to(device).float()
+    shallow = ShallowSAE(sae_cfg).to(device).float()
 
-    train_sae(deep_sae, shallow_sae, sae_train_cfg)
+    train_sae(deep, shallow, train_cfg)
 
 
 if __name__ == "__main__":
