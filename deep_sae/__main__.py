@@ -17,16 +17,16 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--d_model", default=1152, type=int)
     parser.add_argument("--d_mid", default=2304, type=int)
     parser.add_argument("--d_feat", default=4608, type=int)
-    parser.add_argument("--k_feat", default=36, type=int)
-    parser.add_argument("--k_aux", default=576, type=int)
-    parser.add_argument("--tokens_to_dead", default=10000000, type=int)
+    parser.add_argument("--k_feat", default=16, type=int)
+    parser.add_argument("--k_aux", default=512, type=int)
+    parser.add_argument("--tokens_to_dead", default=1000000, type=int)
 
     parser.add_argument("--lr", default=1e-4, type=float)
     parser.add_argument("--batch_size", default=64, type=int)
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
     parser.add_argument("--run_name", default="batchtopk", type=str)
-    parser.add_argument("--aux_coeff", default=4.0, type=float)
+    parser.add_argument("--aux_coeff", default=6.0, type=float)
 
     return parser.parse_args()
 
