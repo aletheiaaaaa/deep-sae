@@ -7,7 +7,8 @@ from .sae import SAEConfig, DeepSAE, device
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="Deep SAE experimentation",
-        description="Trains and evaluates a deep vs shallow SAE on real-world transformers",
+        description="Trains and evaluates a deep vs shallow SAE on real-world "
+        "transformers",
     )
 
     parser.add_argument("--layer", default=10, type=int)
@@ -25,7 +26,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--upload_every", default=16, type=int)
     parser.add_argument("--save_path", default="sae", type=str)
     parser.add_argument("--run_name", default="batchtopk", type=str)
-    parser.add_argument("--aux_coeff", default=1.0, type=float)
+    parser.add_argument("--aux_coeff", default=4.0, type=float)
 
     return parser.parse_args()
 
