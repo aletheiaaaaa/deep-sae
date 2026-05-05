@@ -28,15 +28,15 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
-    parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
+    parser.add_argument("--training-tokens", type=int, default=120000 * 4096)
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
-    parser.add_argument("--l0-coefficient", type=float, default=10.0)
+    parser.add_argument("--l0-coefficient", type=float, default=15.0)
     parser.add_argument("--pre-act-loss-coefficient", type=float, default=4.0)
 
     # Output
-    parser.add_argument("--output-path", type=str, default="saes/saelens_run_2")
+    parser.add_argument("--output-path", type=str, default="saes/saelens_run_3")
 
     args = parser.parse_args()
 
