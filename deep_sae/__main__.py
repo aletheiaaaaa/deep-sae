@@ -52,6 +52,7 @@ def main() -> None:
             d_sae=args.d_sae,
             l0_coefficient=args.l0_coefficient,
             rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
+            jumprelu_sparsity_loss_mode="tanh",
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
