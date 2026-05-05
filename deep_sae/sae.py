@@ -151,7 +151,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             hidden_pre=hidden_pre,
             dead_neuron_mask=step_input.dead_neuron_mask,
         )
-        return {"recon_loss": aux_loss}
+        return {"aux_loss": aux_loss}
 
     @override
     def calculate_topk_aux_loss(
@@ -170,7 +170,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             return sae_out.new_tensor(0.0)
 
         residual = (sae_in - sae_out).detach()
-        k_aux = sae_in.shape[-1] // 2
+        k_aux = hidden_pre.shape[-1] // 2
         scale = min(num_dead / k_aux, 1.0)
         k_aux = min(k_aux, num_dead)
 
