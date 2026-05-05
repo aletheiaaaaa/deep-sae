@@ -25,7 +25,6 @@ def eval_sae(
     model_batch_size: int,
     device: str,
     dtype: torch.dtype,
-    activation_scale: float = 1.0,
 ) -> dict:
     """
     Compute SAELens-style evaluation metrics for a live model + SAE.
@@ -63,8 +62,7 @@ def eval_sae(
 
         # Metrics computed in unscaled (model activation) space
         acts = collect_acts(model, seqs, hook_name, device, dtype)
-        sae_out_scaled, feat_acts, _ = sae(acts * activation_scale)
-        sae_out = sae_out_scaled / activation_scale
+        sae_out, feat_acts, _ = sae(acts)
 
         n = acts.shape[0]
         x64 = acts.double()
@@ -131,7 +129,7 @@ def eval_sae(
             shape = value.shape
             flat = value.reshape(-1, shape[-1]).to(dtype)
             # Scale input → SAE → unscale output, staying in model activation space
-            recon = sae.decode(sae.encode(flat * activation_scale)[0]) / activation_scale
+            recon = sae.decode(sae.encode(flat)[0])
             return recon.reshape(shape).to(value.dtype)
 
         ce_sae_list.append(
@@ -147,15 +145,6 @@ def eval_sae(
     ce_ablated = sum(ce_abl_list) / len(ce_abl_list)
     ce_sae = sum(ce_sae_list) / len(ce_sae_list)
     ce_loss_score = (ce_ablated - ce_sae) / max(ce_ablated - ce_clean, 1e-8)
-
-    # Weight-based metrics
-    W_enc_mid = sae.W_enc_mid  # [d_mid, d_sae]
-    W_dec_mid = sae.W_dec_mid  # [d_sae, d_mid]
-    enc_norm = W_enc_mid.norm(dim=0)
-    dec_norm = W_dec_mid.norm(dim=1)
-    enc_dir = (W_enc_mid / enc_norm.clamp(min=1e-8)).T  # [d_sae, d_mid]
-    dec_dir = W_dec_mid / dec_norm.unsqueeze(1).clamp(min=1e-8)
-    enc_dec_cos = (dec_dir * enc_dir).sum(-1).mean().item()
 
     return {
         "metrics/explained_variance": explained_variance,
@@ -174,8 +163,6 @@ def eval_sae(
         "ce_loss/sae": ce_sae,
         "ce_loss/increase": ce_sae - ce_clean,
         "ce_loss/score": ce_loss_score,
-        "details/mean_enc_dec_cosine_sim": enc_dec_cos,
-        "details/mean_encoder_norm": enc_norm.mean().item(),
         # Internal: feature density values for histogram logging by caller
         "_feature_density": feature_density.cpu().float().tolist(),
     }

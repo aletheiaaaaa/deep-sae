@@ -213,7 +213,6 @@ def train(cfg: TrainConfig) -> None:
                     cfg.model_batch_size,
                     device,
                     dtype,
-                    activation_scale=activation_scale,
                 )
                 density = metrics.pop("_feature_density")
                 freq_np = np.array(density, dtype="float32")
