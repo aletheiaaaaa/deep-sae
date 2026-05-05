@@ -10,11 +10,22 @@ from sae_lens.saes.batchtopk_sae import BatchTopKTrainingSAEConfig, BatchTopKTra
 from sae_lens.saes.jumprelu_sae import JumpReLUSAEConfig
 
 
+def act_times_W_dec(
+    feature_acts: torch.Tensor,
+    W_dec: torch.Tensor,
+    rescale_acts_by_decoder_norm: bool,
+) -> torch.Tensor:
+    if rescale_acts_by_decoder_norm:
+        feature_acts = feature_acts * (1 / W_dec.norm(dim=-1))
+    return feature_acts @ W_dec
+
+
 @dataclass
 class DeepBTKTrainingSAEConfig(BatchTopKTrainingSAEConfig):
     """Configuration for deep BatchTopK SAE training."""
 
     d_mid: int = 4096  # type: ignore[assignment]
+    rescale_acts_by_decoder_norm: bool = True
     decay_coefficient: float = 1e-3
 
     @override
@@ -99,8 +110,15 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
 
     @override
     def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
+        mid = act_times_W_dec(
+            feature_acts, self.W_dec_mid, self.cfg.rescale_acts_by_decoder_norm
+        )
         sae_out_pre = (
-            F.relu(feature_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
+            act_times_W_dec(
+                F.relu(mid + self.b_dec_mid),
+                self.W_dec_full,
+                self.cfg.rescale_acts_by_decoder_norm,
+            )
             + self.b_dec_full
         )
 
@@ -129,7 +147,6 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             losses.update(aux_losses)
 
         self.update_topk_threshold(feature_acts)
-        self.normalize_decoders()
 
         return TrainStepOutput(
             sae_in=step_input.sae_in,
@@ -139,15 +156,6 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             loss=total_loss,
             losses=losses,
         )
-
-    def normalize_decoders(self) -> None:
-        with torch.no_grad():
-            self.W_dec_mid.data /= self.W_dec_mid.data.norm(dim=-1, keepdim=True).clamp(
-                min=1
-            )
-            self.W_dec_full.data /= self.W_dec_full.data.norm(dim=-1, keepdim=True).clamp(
-                min=1
-            )
 
     @override
     def calculate_aux_loss(
@@ -195,7 +203,14 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             -1, auxk_topk.indices, auxk_topk.values
         )
 
-        recons = F.relu(auxk_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
+        mid = act_times_W_dec(
+            auxk_acts, self.W_dec_mid, self.cfg.rescale_acts_by_decoder_norm
+        )
+        recons = act_times_W_dec(
+            F.relu(mid + self.b_dec_mid),
+            self.W_dec_full,
+            self.cfg.rescale_acts_by_decoder_norm,
+        )
 
         auxk_loss = (recons - residual).pow(2).sum(dim=-1).mean()
 
@@ -211,6 +226,7 @@ class DeepJumpReLUSAEConfig(JumpReLUSAEConfig):
     """Configuration class for a deep JumpReLU inference SAE."""
 
     d_mid: int = 4096  # type: ignore[assignment]
+    rescale_acts_by_decoder_norm: bool = False
 
     @override
     @classmethod
@@ -286,8 +302,15 @@ class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
         return self.hook_sae_acts_post(feature_acts * jumprelu_mask)
 
     def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
+        mid = act_times_W_dec(
+            feature_acts, self.W_dec_mid, self.cfg.rescale_acts_by_decoder_norm
+        )
         sae_out_pre = (
-            F.relu(feature_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
+            act_times_W_dec(
+                F.relu(mid + self.b_dec_mid),
+                self.W_dec_full,
+                self.cfg.rescale_acts_by_decoder_norm,
+            )
             + self.b_dec_full
         )
 
