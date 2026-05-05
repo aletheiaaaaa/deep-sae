@@ -25,6 +25,7 @@ def eval_sae(
     model_batch_size: int,
     device: str,
     dtype: torch.dtype,
+    activation_scale: float = 1.0,
 ) -> dict:
     """
     Compute SAELens-style evaluation metrics for a live model + SAE.
@@ -60,8 +61,10 @@ def eval_sae(
         tokens = torch.tensor(seqs, device=device)
         all_token_batches.append(tokens)
 
+        # Metrics computed in unscaled (model activation) space
         acts = collect_acts(model, seqs, hook_name, device, dtype)
-        sae_out, feat_acts, _ = sae(acts)
+        sae_out_scaled, feat_acts, _ = sae(acts * activation_scale)
+        sae_out = sae_out_scaled / activation_scale
 
         n = acts.shape[0]
         x64 = acts.double()
@@ -103,7 +106,7 @@ def eval_sae(
     n_dead = int((feature_fires == 0).sum().item())
     frac_dead = n_dead / d_sae
 
-    # Mean activation for mean-ablation CE baseline
+    # mean_x is in unscaled space — use directly for mean ablation
     mean_act = mean_x.to(dtype).reshape(1, 1, -1)
 
     # Phase 2: CE loss
@@ -127,7 +130,8 @@ def eval_sae(
         def _sae_hook(value: torch.Tensor, hook) -> torch.Tensor:  # noqa: ARG001
             shape = value.shape
             flat = value.reshape(-1, shape[-1]).to(dtype)
-            recon = sae.decode(sae.encode(flat)[0])
+            # Scale input → SAE → unscale output, staying in model activation space
+            recon = sae.decode(sae.encode(flat * activation_scale)[0]) / activation_scale
             return recon.reshape(shape).to(value.dtype)
 
         ce_sae_list.append(

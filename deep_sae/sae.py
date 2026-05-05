@@ -26,7 +26,8 @@ class JumpReLU(torch.autograd.Function):
     def backward(ctx: Any, grad_output: torch.Tensor) -> tuple:
         x, threshold = ctx.saved_tensors
         bandwidth = ctx.bandwidth
-        x_grad = (x > threshold) * grad_output
+        # STE for all params: straight-through regardless of whether features fired
+        x_grad = grad_output
         threshold_grad = (
             -(threshold / bandwidth)
             * _rectangle((x - threshold) / bandwidth)
@@ -55,7 +56,7 @@ class Step(torch.autograd.Function):
         threshold_grad = (
             -(1.0 / bandwidth) * _rectangle((x - threshold) / bandwidth) * grad_output
         ).sum(0)
-        return None, threshold_grad, None
+        return grad_output, threshold_grad, None  # STE for x
 
 
 @dataclass
@@ -64,7 +65,7 @@ class DeepJumpReLUSAEConfig:
     d_mid: int
     d_sae: int
     bandwidth: float = 0.001
-    jumprelu_tanh_scale: float = 1.0
+    jumprelu_tanh_scale: float = 4.0
     pre_act_loss_coefficient: float | None = None
 
 
@@ -91,16 +92,23 @@ class DeepJumpReLUSAE(nn.Module):
 
         self.W_dec_mid = nn.Parameter(w_dec_mid)
         self.W_dec_full = nn.Parameter(w_dec_full)
-        self.W_enc_mid = nn.Parameter(self.W_dec_mid.data.T.clone().contiguous())
-        self.W_enc_full = nn.Parameter(self.W_dec_full.data.T.clone().contiguous())
-        self.threshold = nn.Parameter(torch.zeros(cfg.d_sae, **kw))
+        # Encoder init: (input_dim / output_dim) * W_dec^T, per the Jan-2025 update
+        self.W_enc_mid = nn.Parameter(
+            self.W_dec_mid.data.T.clone().contiguous() * (cfg.d_mid / cfg.d_sae)
+        )
+        self.W_enc_full = nn.Parameter(
+            self.W_dec_full.data.T.clone().contiguous() * (cfg.d_in / cfg.d_mid)
+        )
+        # Log-threshold: actual threshold = exp(log_threshold), init t=0.1 → θ≈1.1
+        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), 0.1, **kw))
 
     def encode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        threshold = self.log_threshold.exp()
         hidden_pre = (
             F.relu((x - self.b_dec) @ self.W_enc_full + self.b_enc_full) @ self.W_enc_mid
             + self.b_enc_mid
         )
-        feature_acts = JumpReLU.apply(hidden_pre, self.threshold, self.cfg.bandwidth)
+        feature_acts = JumpReLU.apply(hidden_pre, threshold, self.cfg.bandwidth)
         return feature_acts, hidden_pre
 
     def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
@@ -123,32 +131,25 @@ class DeepJumpReLUSAE(nn.Module):
         recon_loss = F.mse_loss(sae_out, x)
 
         W_dec_norm = self.W_dec_mid.norm(dim=-1)
-        l0 = torch.tanh(self.cfg.jumprelu_tanh_scale * feature_acts * W_dec_norm).sum(
-            dim=-1
-        )
+        l0 = torch.tanh(self.cfg.jumprelu_tanh_scale * feature_acts * W_dec_norm).sum(dim=-1)
         l0_loss = l0_coefficient * l0.mean()
 
         losses: dict[str, torch.Tensor] = {"recon_loss": recon_loss, "l0_loss": l0_loss}
 
         if self.cfg.pre_act_loss_coefficient is not None:
+            threshold = self.log_threshold.exp()
             if dead_neuron_mask is None or not dead_neuron_mask.any():
                 losses["pre_act_loss"] = hidden_pre.new_tensor(0.0)
             else:
                 per_item = (
-                    (self.threshold - hidden_pre).relu() * dead_neuron_mask * W_dec_norm
+                    (threshold - hidden_pre).relu() * dead_neuron_mask * W_dec_norm
                 ).sum(dim=-1)
-                losses["pre_act_loss"] = (
-                    self.cfg.pre_act_loss_coefficient * per_item.mean()
-                )
+                losses["pre_act_loss"] = self.cfg.pre_act_loss_coefficient * per_item.mean()
 
         losses["loss"] = sum(losses.values())
         return losses
 
     def normalize_decoders(self) -> None:
         with torch.no_grad():
-            self.W_dec_mid.data /= self.W_dec_mid.data.norm(dim=-1, keepdim=True).clamp(
-                min=1
-            )
-            self.W_dec_full.data /= self.W_dec_full.data.norm(dim=-1, keepdim=True).clamp(
-                min=1
-            )
+            self.W_dec_mid.data /= self.W_dec_mid.data.norm(dim=-1, keepdim=True).clamp(min=1)
+            self.W_dec_full.data /= self.W_dec_full.data.norm(dim=-1, keepdim=True).clamp(min=1)
