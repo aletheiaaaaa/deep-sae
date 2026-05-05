@@ -55,6 +55,8 @@ def main() -> None:
         d_in=args.d_in,
         d_mid=args.d_mid,
         d_sae=args.d_sae,
+        bandwidth=2.0,
+        jumprelu_tanh_scale=4.0,
         model_name=args.model_name,
         hook_name=args.hook_name,
         dataset_path=args.dataset_path,
