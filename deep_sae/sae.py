@@ -71,7 +71,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
         w_dec_full_data = torch.empty(
             self.cfg.d_mid, self.cfg.d_in, dtype=self.dtype, device=self.device
         )
-        nn.init.kaiming_uniform_(w_dec_full_data, mode='fan_out')
+        nn.init.kaiming_uniform_(w_dec_full_data, mode="fan_out")
 
         self.W_dec_mid = nn.Parameter(w_dec_mid_data)
         self.W_dec_full = nn.Parameter(w_dec_full_data)
@@ -180,10 +180,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             -1, auxk_topk.indices, auxk_topk.values
         )
 
-        recons = (
-            F.relu(auxk_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
-            + self.b_dec_full
-        )
+        recons = F.relu(auxk_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
 
         auxk_loss = (recons - residual).pow(2).sum(dim=-1).mean()
 
@@ -243,7 +240,7 @@ class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
         w_dec_full_data = torch.empty(
             self.cfg.d_mid, self.cfg.d_in, dtype=self.dtype, device=self.device
         )
-        nn.init.kaiming_uniform_(w_dec_full_data, mode='fan_out')
+        nn.init.kaiming_uniform_(w_dec_full_data, mode="fan_out")
 
         self.threshold = nn.Parameter(
             torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
