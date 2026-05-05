@@ -21,7 +21,7 @@ class TrainConfig:
     d_sae: int = 16384
     bandwidth: float = 2.0
     jumprelu_tanh_scale: float = 4.0
-    pre_act_loss_coefficient: float | None = 1.0
+    pre_act_loss_coefficient: float | None = 4.0
 
     # Model / data
     model_name: str = "gemma-3-1b-pt"
