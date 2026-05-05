@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import numpy as np
 import torch
+import torch.nn.functional as F
 import wandb
 from datasets import load_dataset
 from transformer_lens import HookedTransformer
@@ -188,9 +189,7 @@ def train(cfg: TrainConfig) -> None:
                 l2_ratio = (
                     sae_out.norm(dim=-1) / batch.norm(dim=-1).clamp(min=1e-8)
                 ).mean().item()
-                cos_sim = torch.nn.functional.cosine_similarity(
-                    sae_out, batch, dim=-1
-                ).mean().item()
+                cos_sim = F.cosine_similarity(sae_out, batch, dim=-1).mean().item()
                 frac_alive = (steps_since_fired == 0).float().mean().item()
 
             log: dict = {

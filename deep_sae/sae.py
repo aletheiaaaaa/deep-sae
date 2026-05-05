@@ -92,13 +92,8 @@ class DeepJumpReLUSAE(nn.Module):
 
         self.W_dec_mid = nn.Parameter(w_dec_mid)
         self.W_dec_full = nn.Parameter(w_dec_full)
-        # Encoder init: (input_dim / output_dim) * W_dec^T, per the Jan-2025 update
-        self.W_enc_mid = nn.Parameter(
-            self.W_dec_mid.data.T.clone().contiguous() * (cfg.d_mid / cfg.d_sae)
-        )
-        self.W_enc_full = nn.Parameter(
-            self.W_dec_full.data.T.clone().contiguous() * (cfg.d_in / cfg.d_mid)
-        )
+        self.W_enc_mid = nn.Parameter(self.W_dec_mid.data.T.clone().contiguous())
+        self.W_enc_full = nn.Parameter(self.W_dec_full.data.T.clone().contiguous())
         # Log-threshold: actual threshold = exp(log_threshold), init t=0.1 → θ≈1.1
         self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), 0.1, **kw))
 
@@ -128,7 +123,7 @@ class DeepJumpReLUSAE(nn.Module):
         l0_coefficient: float,
         dead_neuron_mask: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
-        recon_loss = F.mse_loss(sae_out, x)
+        recon_loss = (sae_out - x).pow(2).sum(-1).mean()
 
         W_dec_norm = self.W_dec_mid.norm(dim=-1)
         l0 = torch.tanh(self.cfg.jumprelu_tanh_scale * feature_acts * W_dec_norm).sum(dim=-1)
