@@ -35,7 +35,7 @@ def main() -> None:
     )
 
     # Output
-    parser.add_argument("--output-path", type=str, default="saes/saelens_run_1")
+    parser.add_argument("--output-path", type=str, default="saes/saelens_run_2")
 
     args = parser.parse_args()
 
@@ -45,7 +45,7 @@ def main() -> None:
             d_in=args.d_in,
             d_mid=args.d_mid,
             d_sae=args.d_sae,
-            aux_loss_coefficient=1 / 32,
+            aux_loss_coefficient=1 / 8,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
