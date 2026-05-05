@@ -32,7 +32,6 @@ class DeepJumpReLUTrainingSAEConfig(JumpReLUTrainingSAEConfig):
 
     d_mid: int = 4096  # type: ignore[assignment]
     rescale_acts_by_decoder_norm: bool = True
-    active_l0: float = 16.0
 
     @override
     @classmethod

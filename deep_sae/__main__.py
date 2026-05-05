@@ -33,12 +33,7 @@ def main() -> None:
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
     parser.add_argument("--l0-coefficient", type=float, default=10.0)
-    parser.add_argument(
-        "--no-rescale",
-        dest="rescale_acts_by_decoder_norm",
-        action="store_false",
-        default=True,
-    )
+    parser.add_argument("--pre-act-loss-coefficient", type=float, default=4.0)
 
     # Output
     parser.add_argument("--output-path", type=str, default="saes/saelens_run_1")
@@ -53,6 +48,7 @@ def main() -> None:
             l0_coefficient=args.l0_coefficient,
             rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
             jumprelu_sparsity_loss_mode="tanh",
+            pre_act_loss_coefficient=args.pre_act_loss_coefficient,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
