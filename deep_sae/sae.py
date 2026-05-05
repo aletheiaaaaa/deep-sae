@@ -16,22 +16,11 @@ from sae_lens.saes.jumprelu_sae import (
 )
 
 
-def act_times_W_dec(
-    feature_acts: torch.Tensor,
-    W_dec: torch.Tensor,
-    rescale_acts_by_decoder_norm: bool,
-) -> torch.Tensor:
-    if rescale_acts_by_decoder_norm:
-        feature_acts = feature_acts * (1 / W_dec.norm(dim=-1))
-    return feature_acts @ W_dec
-
-
 @dataclass
 class DeepJumpReLUTrainingSAEConfig(JumpReLUTrainingSAEConfig):
     """Configuration for deep JumpReLU SAE training."""
 
     d_mid: int = 4096  # type: ignore[assignment]
-    rescale_acts_by_decoder_norm: bool = True
 
     @override
     @classmethod
@@ -115,17 +104,8 @@ class DeepJumpReLUTrainingSAE(JumpReLUTrainingSAE):
 
     @override
     def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
-        mid = act_times_W_dec(
-            feature_acts, self.W_dec_mid, self.cfg.rescale_acts_by_decoder_norm
-        )
-        sae_out_pre = (
-            act_times_W_dec(
-                F.relu(mid + self.b_dec_mid),
-                self.W_dec_full,
-                self.cfg.rescale_acts_by_decoder_norm,
-            )
-            + self.b_dec_full
-        )
+        mid = feature_acts @ self.W_dec_mid
+        sae_out_pre = F.relu(mid + self.b_dec_mid) @ self.W_dec_full + self.b_dec_full
         sae_out_pre = self.hook_sae_recons(sae_out_pre)
         return self.reshape_fn_out(sae_out_pre, self.d_head)
 
@@ -190,7 +170,6 @@ class DeepJumpReLUSAEConfig(JumpReLUSAEConfig):
     """Configuration class for a deep JumpReLU inference SAE."""
 
     d_mid: int = 4096  # type: ignore[assignment]
-    rescale_acts_by_decoder_norm: bool = False
 
     @override
     @classmethod
@@ -264,17 +243,8 @@ class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
         return self.hook_sae_acts_post(feature_acts * jumprelu_mask)
 
     def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
-        mid = act_times_W_dec(
-            feature_acts, self.W_dec_mid, self.cfg.rescale_acts_by_decoder_norm
-        )
-        sae_out_pre = (
-            act_times_W_dec(
-                F.relu(mid + self.b_dec_mid),
-                self.W_dec_full,
-                self.cfg.rescale_acts_by_decoder_norm,
-            )
-            + self.b_dec_full
-        )
+        mid = feature_acts @ self.W_dec_mid
+        sae_out_pre = F.relu(mid + self.b_dec_mid) @ self.W_dec_full + self.b_dec_full
         sae_out_pre = self.hook_sae_recons(sae_out_pre)
         return self.reshape_fn_out(sae_out_pre, self.d_head)
 

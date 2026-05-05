@@ -46,7 +46,6 @@ def main() -> None:
             d_mid=args.d_mid,
             d_sae=args.d_sae,
             l0_coefficient=args.l0_coefficient,
-            rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
             jumprelu_sparsity_loss_mode="tanh",
             pre_act_loss_coefficient=args.pre_act_loss_coefficient,
         ),
