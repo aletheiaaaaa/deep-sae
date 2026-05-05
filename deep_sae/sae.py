@@ -12,6 +12,7 @@ from sae_lens.saes.jumprelu_sae import (
     JumpReLUSAEConfig,
     JumpReLUTrainingSAEConfig,
     JumpReLUTrainingSAE,
+    calculate_pre_act_loss,
 )
 
 
@@ -31,6 +32,7 @@ class DeepJumpReLUTrainingSAEConfig(JumpReLUTrainingSAEConfig):
 
     d_mid: int = 4096  # type: ignore[assignment]
     rescale_acts_by_decoder_norm: bool = True
+    active_l0: float = 16.0
 
     @override
     @classmethod
@@ -153,6 +155,15 @@ class DeepJumpReLUTrainingSAE(JumpReLUTrainingSAE):
             )
 
         losses: dict[str, torch.Tensor] = {"l0_loss": l0_loss}
+
+        if self.cfg.pre_act_loss_coefficient is not None:
+            losses["pre_act_loss"] = calculate_pre_act_loss(
+                self.cfg.pre_act_loss_coefficient,
+                threshold,
+                hidden_pre,
+                step_input.dead_neuron_mask,
+                W_dec_norm,
+            )
 
         return losses
 

@@ -32,7 +32,7 @@ def main() -> None:
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
-    parser.add_argument("--l0-coefficient", type=float, default=4.0)
+    parser.add_argument("--l0-coefficient", type=float, default=10.0)
     parser.add_argument(
         "--no-rescale",
         dest="rescale_acts_by_decoder_norm",
