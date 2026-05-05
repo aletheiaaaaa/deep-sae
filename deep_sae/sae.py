@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import override
+from typing import Any, override
+from numpy.typing import NDArray
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -210,6 +211,10 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
         auxk_loss = (recons - residual).pow(2).sum(dim=-1).mean()
 
         return self.cfg.aux_loss_coefficient * scale * auxk_loss
+
+    @override
+    def log_histograms(self) -> dict[str, NDArray[Any]]:
+        return {}
 
 
 @dataclass
