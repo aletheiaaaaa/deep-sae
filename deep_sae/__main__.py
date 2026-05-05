@@ -26,7 +26,7 @@ def main() -> None:
     )
 
     # Training
-    parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
     parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
