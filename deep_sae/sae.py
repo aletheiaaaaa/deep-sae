@@ -127,27 +127,15 @@ class DeepJumpReLUSAE(nn.Module):
     ) -> dict[str, torch.Tensor]:
         recon_loss = (sae_out - x).pow(2).sum(-1).mean()
 
-        W_dec_norm = self.W_dec_mid.norm(dim=-1)
-        l0 = torch.tanh(self.cfg.jumprelu_tanh_scale * feature_acts * W_dec_norm).sum(
-            dim=-1
-        )
+        l0 = torch.tanh(self.cfg.jumprelu_tanh_scale * feature_acts).sum(dim=-1)
         l0_loss = l0_coefficient * l0.mean()
 
         losses: dict[str, torch.Tensor] = {"recon_loss": recon_loss, "l0_loss": l0_loss}
 
         if self.cfg.pre_act_loss_coefficient is not None:
             threshold = self.log_threshold.exp()
-            per_item = ((threshold - feature_acts).relu() * W_dec_norm).sum(dim=-1)
+            per_item = ((threshold - feature_acts).relu()).sum(dim=-1)
             losses["pre_act_loss"] = self.cfg.pre_act_loss_coefficient * per_item.mean()
 
         losses["loss"] = sum(losses.values())
         return losses
-
-    def normalize_decoders(self) -> None:
-        with torch.no_grad():
-            self.W_dec_mid.data /= self.W_dec_mid.data.norm(dim=-1, keepdim=True).clamp(
-                min=1
-            )
-            self.W_dec_full.data /= self.W_dec_full.data.norm(dim=-1, keepdim=True).clamp(
-                min=1
-            )

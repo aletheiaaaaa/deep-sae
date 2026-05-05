@@ -21,7 +21,7 @@ class TrainConfig:
     d_sae: int = 16384
     bandwidth: float = 2.0
     jumprelu_tanh_scale: float = 4.0
-    pre_act_loss_coefficient: float | None = 3e-6
+    pre_act_loss_coefficient: float | None = 5e-3
 
     # Model / data
     model_name: str = "gemma-3-1b-pt"
@@ -33,7 +33,7 @@ class TrainConfig:
 
     # Training
     lr: float = 2e-4
-    train_batch_size_tokens: int = 32768
+    train_batch_size_tokens: int = 4096
     training_tokens: int = 120_000 * 4096
     l0_coefficient: float = 20.0
     dead_neuron_window: int = 1000
@@ -41,7 +41,7 @@ class TrainConfig:
 
     # Output
     device: str = "cuda"
-    dtype: str = "bfloat16"
+    dtype: str = "float16"
     output_path: str = "saes/run"
 
     # Logging
@@ -49,7 +49,7 @@ class TrainConfig:
     wandb_run_name: str | None = None
     wandb_log_frequency: int = 16  # training steps between metric logs
     wandb_hist_frequency: int = 1000  # training steps between density histogram logs
-    eval_frequency: int = 0  # log steps between full evals (0 = disabled)
+    eval_frequency: int = 16  # log steps between full evals (0 = disabled)
     n_eval_batches: int = 20  # model_batch_size-sized batches per eval
 
 
@@ -122,9 +122,6 @@ def train(cfg: TrainConfig) -> None:
     steps_since_fired = torch.zeros(cfg.d_sae, dtype=torch.long, device=device)
     hist_fire_counts = torch.zeros(cfg.d_sae, dtype=torch.long, device=device)
 
-    # activation_scale is read by _refill; starts at 1.0, updated after buffer prime
-    activation_scale = 1.0
-
     def _refill() -> None:
         seqs: list[list[int]] = []
         for _ in range(cfg.model_batch_size):
@@ -134,27 +131,11 @@ def train(cfg: TrainConfig) -> None:
                 break
         if seqs:
             acts = collect_acts(model, seqs, cfg.hook_name, device, dtype)
-            buffer.extend(acts * activation_scale)
+            buffer.extend(acts)
 
-    # Prime buffer with raw activations (scale=1.0), then compute and apply scale
-    _refill()
-    if buffer.data is not None:
-        with torch.no_grad():
-            # Scale inputs so E[||x||] = sqrt(d_in), per Jan-2025 update
-            activation_scale = float((cfg.d_in**0.5) / buffer.data.norm(dim=-1).mean())
-            buffer.data.mul_(activation_scale)
-
-            # b_d stays at zeros per article; initialize b_enc_mid so each feature
-            # activates at rate 10000/d_sae on this data subset
-            target_rate = 10000.0 / cfg.d_sae
-            h1 = F.relu(buffer.data @ sae.W_enc_full + sae.b_enc_full)
-            hidden_pre_init = (h1 @ sae.W_enc_mid).float()
-            quantile_vals = torch.quantile(hidden_pre_init, 1.0 - target_rate, dim=0)
-            sae.b_enc_mid.data = (sae.log_threshold.exp() - quantile_vals).to(dtype)
-
-    wandb.log({"details/activation_scale": activation_scale}, step=0)
     Path(cfg.output_path).mkdir(parents=True, exist_ok=True)
 
+    _refill()
     for step in tqdm(range(1, total_steps + 1), desc="Training"):
         while len(buffer) < cfg.train_batch_size_tokens:
             _refill()
@@ -200,7 +181,6 @@ def train(cfg: TrainConfig) -> None:
                     .item()
                 )
                 cos_sim = F.cosine_similarity(sae_out, batch, dim=-1).mean().item()
-                frac_alive = (steps_since_fired == 0).float().mean().item()
 
             log: dict = {
                 "losses/total": losses["loss"].item(),
@@ -208,7 +188,6 @@ def train(cfg: TrainConfig) -> None:
                 "losses/l0": losses["l0_loss"].item(),
                 "sparsity/l0": l0,
                 "sparsity/n_dead": dead_neuron_mask.sum().item(),
-                "sparsity/frac_alive": frac_alive,
                 "metrics/explained_variance": explained_variance,
                 "metrics/l2_ratio": l2_ratio,
                 "metrics/cosine_similarity": cos_sim,

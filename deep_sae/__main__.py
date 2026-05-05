@@ -1,4 +1,5 @@
 import os
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import argparse
@@ -17,13 +18,13 @@ def main() -> None:
     parser.add_argument(
         "--no-streaming", dest="streaming", action="store_false", default=True
     )
-    parser.add_argument("--context-size", type=int, default=256)
+    parser.add_argument("--context-size", type=int, default=128)
     parser.add_argument("--model-batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument("--train-batch-size-tokens", type=int, default=32768)
+    parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--training-tokens", type=int, default=120_000 * 4096)
     parser.add_argument("--l0-coefficient", type=float, default=20.0)
-    parser.add_argument("--pre-act-loss-coefficient", type=float, default=3e-6)
+    parser.add_argument("--pre-act-loss-coefficient", type=float, default=5e-3)
     parser.add_argument("--dead-neuron-window", type=int, default=1000)
     parser.add_argument("--n-batches-in-buffer", type=int, default=32)
     parser.add_argument(
@@ -34,17 +35,17 @@ def main() -> None:
     parser.add_argument("--wandb-project", type=str, default="deep_sae")
     parser.add_argument("--run-name", type=str, default=None, dest="wandb_run_name")
     parser.add_argument("--wandb-log-frequency", type=int, default=16)
-    parser.add_argument("--wandb-hist-frequency", type=int, default=1000)
+    parser.add_argument("--wandb-hist-frequency", type=int, default=64)
     parser.add_argument(
         "--eval-frequency",
         type=int,
-        default=0,
+        default=64,
         help="Run full eval every N logging steps (0 = disabled)",
     )
     parser.add_argument(
         "--n-eval-batches",
         type=int,
-        default=20,
+        default=16,
         help="Number of model-batch-size batches to use per eval",
     )
 
