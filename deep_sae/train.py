@@ -155,11 +155,12 @@ def train(cfg: TrainConfig) -> None:
         # Linear l0 warmup over entire training run
         current_l0_coef = cfg.l0_coefficient * step / total_steps
 
-        sae_out, feature_acts, _ = sae(batch)
+        sae_out, feature_acts, hidden_pre = sae(batch)
         losses = sae.compute_loss(
             batch,
             sae_out,
             feature_acts,
+            hidden_pre,
             l0_coefficient=current_l0_coef,
             dead_neuron_mask=dead_neuron_mask,
         )

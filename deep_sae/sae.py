@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 from typing import Any
 import torch
 from torch import nn
@@ -99,7 +100,7 @@ class DeepJumpReLUSAE(nn.Module):
         self.W_enc_full = nn.Parameter(
             self.W_dec_full.data.T.clone().contiguous() * (cfg.d_mid / cfg.d_in)
         )
-        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), 0.1, **kw))
+        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), math.log(0.01), **kw))
 
     def encode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         threshold = self.log_threshold.exp()
@@ -123,6 +124,7 @@ class DeepJumpReLUSAE(nn.Module):
         x: torch.Tensor,
         sae_out: torch.Tensor,
         feature_acts: torch.Tensor,
+        hidden_pre: torch.Tensor,
         l0_coefficient: float,
         dead_neuron_mask: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
@@ -135,7 +137,7 @@ class DeepJumpReLUSAE(nn.Module):
 
         if self.cfg.pre_act_loss_coefficient is not None:
             threshold = self.log_threshold.exp()
-            per_item = ((threshold - feature_acts).relu() * dead_neuron_mask).sum(dim=-1)
+            per_item = ((threshold - hidden_pre).relu() * dead_neuron_mask).sum(dim=-1)
             losses["pre_act_loss"] = self.cfg.pre_act_loss_coefficient * per_item.mean()
 
         losses["loss"] = sum(losses.values())
