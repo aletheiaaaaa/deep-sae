@@ -36,7 +36,7 @@ def main() -> None:
     parser.add_argument("--pre-act-loss-coefficient", type=float, default=4.0)
 
     # Output
-    parser.add_argument("--output-path", type=str, default="saes/saelens_run_1")
+    parser.add_argument("--output-path", type=str, default="saes/saelens_run_2")
 
     args = parser.parse_args()
 
