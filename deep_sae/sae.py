@@ -50,17 +50,17 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
     def initialize_weights(self) -> None:
         super().initialize_weights()
 
-        self.b_enc_mid = nn.Parameter(
+        self.b_enc_full = nn.Parameter(
             torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
         )
-        self.b_enc_full = nn.Parameter(
+        self.b_enc_mid = nn.Parameter(
             torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
         )
 
-        self.b_dec_full = nn.Parameter(
+        self.b_dec_mid = nn.Parameter(
             torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
         )
-        self.b_dec_mid = nn.Parameter(
+        self.b_dec_full = nn.Parameter(
             torch.zeros(self.cfg.d_in, dtype=self.dtype, device=self.device)
         )
 
@@ -85,7 +85,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         sae_in = self.process_sae_in(x)
         hidden_pre = self.hook_sae_acts_pre(
-            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_dec_mid
+            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_enc_mid
             + self.b_enc_mid
         )
 
@@ -157,10 +157,13 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
         hidden_pre: torch.Tensor,
         dead_neuron_mask: torch.Tensor | None,
     ) -> torch.Tensor:
+        if dead_neuron_mask is None:
+            return sae_out.new_tensor(0.0)
+
         num_dead = int(dead_neuron_mask.sum())
 
-        if dead_neuron_mask is None or num_dead == 0:
-            sae_out.new_tensor(0.0)
+        if num_dead == 0:
+            return sae_out.new_tensor(0.0)
 
         residual = (sae_in - sae_out).detach()
         k_aux = sae_in.shape[-1] // 2
@@ -251,7 +254,7 @@ class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         sae_in = self.process_sae_in(x)
         hidden_pre = self.hook_sae_acts_pre(
-            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_dec_mid
+            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_enc_mid
             + self.b_enc_mid
         )
 
