@@ -88,9 +88,9 @@ class DeepJumpReLUSAE(nn.Module):
         self.b_dec_mid = nn.Parameter(torch.zeros(cfg.d_mid, **kw))
 
         w_dec_mid = torch.empty(cfg.d_sae, cfg.d_mid, **kw)
-        nn.init.uniform_(w_dec_mid, -(cfg.d_sae**-0.5), cfg.d_sae**-0.5)
+        nn.init.kaiming_uniform_(w_dec_mid, mode="fan_out")
         w_dec_full = torch.empty(cfg.d_mid, cfg.d_in, **kw)
-        nn.init.uniform_(w_dec_full, -(cfg.d_mid**-0.5), cfg.d_mid**-0.5)
+        nn.init.kaiming_uniform_(w_dec_full, mode="fan_out")
 
         self.W_dec_mid = nn.Parameter(w_dec_mid)
         self.W_dec_full = nn.Parameter(w_dec_full)
