@@ -215,17 +215,17 @@ class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
     def initialize_weights(self) -> None:
         super().initialize_weights()
 
-        self.b_enc_mid = nn.Parameter(
+        self.b_enc_full = nn.Parameter(
             torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
         )
-        self.b_enc_full = nn.Parameter(
+        self.b_enc_mid = nn.Parameter(
             torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
         )
 
-        self.b_dec_full = nn.Parameter(
+        self.b_dec_mid = nn.Parameter(
             torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
         )
-        self.b_dec_mid = nn.Parameter(
+        self.b_dec_full = nn.Parameter(
             torch.zeros(self.cfg.d_in, dtype=self.dtype, device=self.device)
         )
 
