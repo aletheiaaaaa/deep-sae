@@ -24,7 +24,7 @@ class DeepBTKTrainingSAEConfig(BatchTopKTrainingSAEConfig):
     """Configuration for deep BatchTopK SAE training."""
 
     d_mid: int = 4096  # type: ignore[assignment]
-    rescale_acts_by_decoder_norm: bool = True
+    rescale_acts_by_decoder_norm: bool = False
 
     @override
     @classmethod
