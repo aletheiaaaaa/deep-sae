@@ -124,6 +124,7 @@ class DeepJumpReLUSAE(nn.Module):
         sae_out: torch.Tensor,
         feature_acts: torch.Tensor,
         l0_coefficient: float,
+        dead_neuron_mask: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
         recon_loss = (sae_out - x).pow(2).sum(-1).mean()
 
@@ -134,7 +135,7 @@ class DeepJumpReLUSAE(nn.Module):
 
         if self.cfg.pre_act_loss_coefficient is not None:
             threshold = self.log_threshold.exp()
-            per_item = ((threshold - feature_acts).relu()).sum(dim=-1)
+            per_item = ((threshold - feature_acts).relu() * dead_neuron_mask).sum(dim=-1)
             losses["pre_act_loss"] = self.cfg.pre_act_loss_coefficient * per_item.mean()
 
         losses["loss"] = sum(losses.values())

@@ -161,6 +161,7 @@ def train(cfg: TrainConfig) -> None:
             sae_out,
             feature_acts,
             l0_coefficient=current_l0_coef,
+            dead_neuron_mask=dead_neuron_mask,
         )
 
         optimizer.zero_grad()
