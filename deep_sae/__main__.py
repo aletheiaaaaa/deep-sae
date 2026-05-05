@@ -62,7 +62,7 @@ def main() -> None:
             aux_loss_coefficient=args.aux_loss_coefficient,
             rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
             decay_coefficient=args.decay_coefficient,
-            normalize_activations="layer_norm" if args.normalize_activations else "none",
+            normalize_activations=args.normalize_activations,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
