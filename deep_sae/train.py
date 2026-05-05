@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Iterator
 import torch
 import wandb
 from datasets import load_dataset
@@ -8,6 +7,8 @@ from transformer_lens import HookedTransformer
 from tqdm import tqdm
 
 from .sae import DeepJumpReLUSAE, DeepJumpReLUSAEConfig
+from .eval import eval_sae
+from .utils import token_iter, collect_acts
 
 
 @dataclass
@@ -43,31 +44,10 @@ class TrainConfig:
 
     # Logging
     wandb_project: str = "deep_sae"
-    wandb_log_frequency: int = 16
-
-
-def _token_iter(dataset, tokenizer, context_size: int) -> Iterator[list[int]]:
-    bos = [tokenizer.bos_token_id] if tokenizer.bos_token_id is not None else []
-    buf: list[int] = []
-    for example in dataset:
-        buf.extend(bos + tokenizer.encode(example["text"]))
-        while len(buf) >= context_size:
-            yield buf[:context_size]
-            buf = buf[context_size:]
-
-
-@torch.no_grad()
-def _collect_acts(
-    model: HookedTransformer,
-    seqs: list[list[int]],
-    hook_name: str,
-    device: str,
-    dtype: torch.dtype,
-) -> torch.Tensor:
-    tokens = torch.tensor(seqs, device=device)
-    _, cache = model.run_with_cache(tokens, names_filter=hook_name, return_type=None)
-    acts = cache[hook_name]  # [batch, seq, d_in]
-    return acts.reshape(-1, acts.shape[-1]).to(dtype)
+    wandb_log_frequency: int = 16  # training steps between metric logs
+    wandb_hist_frequency: int = 1000  # training steps between density histogram logs
+    eval_frequency: int = 0  # log steps between full evals (0 = disabled)
+    n_eval_batches: int = 20  # model_batch_size-sized batches per eval
 
 
 class ActivationBuffer:
@@ -103,7 +83,14 @@ def train(cfg: TrainConfig) -> None:
     tokenizer.pad_token = tokenizer.eos_token
 
     dataset = load_dataset(cfg.dataset_path, split="train", streaming=cfg.streaming)
-    tok_iter = _token_iter(dataset, tokenizer, cfg.context_size)
+    train_tok_iter = token_iter(dataset, tokenizer, cfg.context_size)
+
+    eval_tok_iter = None
+    if cfg.eval_frequency > 0:
+        eval_dataset = load_dataset(
+            cfg.dataset_path, split="train", streaming=cfg.streaming
+        )
+        eval_tok_iter = token_iter(eval_dataset, tokenizer, cfg.context_size)
 
     sae_cfg = DeepJumpReLUSAEConfig(
         d_in=cfg.d_in,
@@ -118,18 +105,19 @@ def train(cfg: TrainConfig) -> None:
 
     buffer = ActivationBuffer(cfg.n_batches_in_buffer * cfg.train_batch_size_tokens)
     steps_since_fired = torch.zeros(cfg.d_sae, dtype=torch.long, device=device)
+    hist_fire_counts = torch.zeros(cfg.d_sae, dtype=torch.long, device=device)
 
     def _refill() -> None:
         seqs: list[list[int]] = []
         for _ in range(cfg.model_batch_size):
             try:
-                seqs.append(next(tok_iter))
+                seqs.append(next(train_tok_iter))
             except StopIteration:
                 break
         if seqs:
-            buffer.extend(_collect_acts(model, seqs, cfg.hook_name, device, dtype))
+            buffer.extend(collect_acts(model, seqs, cfg.hook_name, device, dtype))
 
-    # Prime the buffer and init b_dec to activation mean
+    # Prime buffer and init b_dec to activation mean
     _refill()
     if buffer.data is not None:
         with torch.no_grad():
@@ -157,27 +145,98 @@ def train(cfg: TrainConfig) -> None:
 
         optimizer.zero_grad()
         losses["loss"].backward()
-        torch.nn.utils.clip_grad_norm_(sae.parameters(), 1.0)
+        grad_norm = torch.nn.utils.clip_grad_norm_(sae.parameters(), 1.0).item()
         optimizer.step()
         sae.normalize_decoders()
 
-        fired = (feature_acts > 0).any(dim=0)
+        fired_mask = feature_acts > 0
+        fired = fired_mask.any(dim=0)
         steps_since_fired[fired] = 0
         steps_since_fired[~fired] += 1
+        hist_fire_counts += fired_mask.long().sum(0)
 
         if step % cfg.wandb_log_frequency == 0:
-            l0 = (feature_acts > 0).float().sum(dim=-1).mean().item()
+            with torch.no_grad():
+                l0 = fired_mask.float().sum(dim=-1).mean().item()
+                residuals = sae_out - batch
+                batch_mean = batch.mean(0)
+                total_var = (batch - batch_mean).pow(2).mean(0).clamp(min=1e-12)
+                explained_variance = (
+                    (1.0 - residuals.pow(2).mean(0) / total_var).mean().item()
+                )
+                l2_ratio = (
+                    (sae_out.norm(dim=-1) / batch.norm(dim=-1).clamp(min=1e-8))
+                    .mean()
+                    .item()
+                )
+                cos_sim = (
+                    torch.nn.functional.cosine_similarity(sae_out, batch, dim=-1)
+                    .mean()
+                    .item()
+                )
+                frac_alive = (steps_since_fired == 0).float().mean().item()
+
             log: dict = {
                 "loss": losses["loss"].item(),
                 "recon_loss": losses["recon_loss"].item(),
                 "l0_loss": losses["l0_loss"].item(),
                 "l0": l0,
                 "n_dead": dead_neuron_mask.sum().item(),
+                "frac_alive": frac_alive,
                 "tokens": step * cfg.train_batch_size_tokens,
+                "explained_variance": explained_variance,
+                "l2_ratio": l2_ratio,
+                "cosine_similarity": cos_sim,
+                "mean_threshold": sae.threshold.mean().item(),
+                "grad_norm": grad_norm,
             }
             if "pre_act_loss" in losses:
                 log["pre_act_loss"] = losses["pre_act_loss"].item()
+
+            log_step = step // cfg.wandb_log_frequency
+            if cfg.eval_frequency > 0 and log_step % cfg.eval_frequency == 0:
+                assert eval_tok_iter is not None
+                metrics = eval_sae(
+                    model,
+                    sae,
+                    sae_cfg,
+                    eval_tok_iter,
+                    cfg.n_eval_batches,
+                    cfg.hook_name,
+                    cfg.model_batch_size,
+                    device,
+                    dtype,
+                )
+                density = metrics.pop("_feature_density")
+                import numpy as np
+
+                freq_np = np.array(density, dtype="float32")
+                alive = freq_np > 0
+                log.update({f"eval/{k}": v for k, v in metrics.items()})
+                log["eval/feature_density_hist"] = wandb.Histogram(freq_np)
+                if alive.any():
+                    log["eval/log10_feature_density_hist"] = wandb.Histogram(
+                        np.log10(freq_np[alive])
+                    )
+
             wandb.log(log, step=step)
+
+        if step % cfg.wandb_hist_frequency == 0:
+            density = hist_fire_counts.float() / (
+                cfg.wandb_hist_frequency * cfg.train_batch_size_tokens
+            )
+            freq_np = density.cpu().float().numpy()
+            alive = freq_np > 0
+            wandb.log(
+                {
+                    "feature_density_hist": wandb.Histogram(freq_np),
+                    "log10_feature_density_hist": wandb.Histogram(
+                        freq_np[alive] if alive.any() else freq_np[:1]
+                    ),
+                },
+                step=step,
+            )
+            hist_fire_counts.zero_()
 
     torch.save(
         {"sae_state_dict": sae.state_dict(), "sae_cfg": sae_cfg, "train_cfg": cfg},
