@@ -1,3 +1,6 @@
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import argparse
 import torch
 from .train import TrainConfig, train
@@ -29,6 +32,7 @@ def main() -> None:
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--output-path", type=str, default="saes/run")
     parser.add_argument("--wandb-project", type=str, default="deep_sae")
+    parser.add_argument("--run-name", type=str, default=None, dest="wandb_run_name")
     parser.add_argument("--wandb-log-frequency", type=int, default=16)
     parser.add_argument("--wandb-hist-frequency", type=int, default=1000)
     parser.add_argument(
@@ -67,6 +71,7 @@ def main() -> None:
         dtype=args.dtype,
         output_path=args.output_path,
         wandb_project=args.wandb_project,
+        wandb_run_name=args.wandb_run_name,
         wandb_log_frequency=args.wandb_log_frequency,
         wandb_hist_frequency=args.wandb_hist_frequency,
         eval_frequency=args.eval_frequency,

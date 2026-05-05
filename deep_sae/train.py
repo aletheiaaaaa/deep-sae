@@ -45,6 +45,7 @@ class TrainConfig:
 
     # Logging
     wandb_project: str = "deep_sae"
+    wandb_run_name: str | None = None
     wandb_log_frequency: int = 16       # training steps between metric logs
     wandb_hist_frequency: int = 1000    # training steps between density histogram logs
     eval_frequency: int = 0             # log steps between full evals (0 = disabled)
@@ -76,7 +77,7 @@ def train(cfg: TrainConfig) -> None:
     dtype = getattr(torch, cfg.dtype)
     device = cfg.device
 
-    wandb.init(project=cfg.wandb_project, config=vars(cfg))
+    wandb.init(project=cfg.wandb_project, name=cfg.wandb_run_name, config=vars(cfg))
 
     model = HookedTransformer.from_pretrained(cfg.model_name, device=device)
     model.eval()
@@ -141,7 +142,7 @@ def train(cfg: TrainConfig) -> None:
             buffer.data.mul_(activation_scale)
             sae.b_dec.data = buffer.data.mean(0)
 
-    wandb.log({"activation_scale": activation_scale}, step=0)
+    wandb.log({"details/activation_scale": activation_scale}, step=0)
     Path(cfg.output_path).mkdir(parents=True, exist_ok=True)
 
     for step in tqdm(range(1, total_steps + 1), desc="Training"):
@@ -193,23 +194,23 @@ def train(cfg: TrainConfig) -> None:
                 frac_alive = (steps_since_fired == 0).float().mean().item()
 
             log: dict = {
-                "loss": losses["loss"].item(),
-                "recon_loss": losses["recon_loss"].item(),
-                "l0_loss": losses["l0_loss"].item(),
-                "l0": l0,
-                "n_dead": dead_neuron_mask.sum().item(),
-                "frac_alive": frac_alive,
-                "tokens": step * cfg.train_batch_size_tokens,
-                "explained_variance": explained_variance,
-                "l2_ratio": l2_ratio,
-                "cosine_similarity": cos_sim,
-                "mean_threshold": sae.log_threshold.exp().mean().item(),
-                "grad_norm": grad_norm,
-                "lr": optimizer.param_groups[0]["lr"],
-                "l0_coefficient": current_l0_coef,
+                "losses/total": losses["loss"].item(),
+                "losses/recon": losses["recon_loss"].item(),
+                "losses/l0": losses["l0_loss"].item(),
+                "sparsity/l0": l0,
+                "sparsity/n_dead": dead_neuron_mask.sum().item(),
+                "sparsity/frac_alive": frac_alive,
+                "metrics/explained_variance": explained_variance,
+                "metrics/l2_ratio": l2_ratio,
+                "metrics/cosine_similarity": cos_sim,
+                "details/tokens": step * cfg.train_batch_size_tokens,
+                "details/mean_threshold": sae.log_threshold.exp().mean().item(),
+                "details/grad_norm": grad_norm,
+                "details/lr": optimizer.param_groups[0]["lr"],
+                "details/l0_coefficient": current_l0_coef,
             }
             if "pre_act_loss" in losses:
-                log["pre_act_loss"] = losses["pre_act_loss"].item()
+                log["losses/pre_act"] = losses["pre_act_loss"].item()
 
             log_step = step // cfg.wandb_log_frequency
             if cfg.eval_frequency > 0 and log_step % cfg.eval_frequency == 0:
@@ -224,9 +225,9 @@ def train(cfg: TrainConfig) -> None:
                 freq_np = np.array(density, dtype="float32")
                 alive = freq_np > 0
                 log.update({f"eval/{k}": v for k, v in metrics.items()})
-                log["eval/feature_density_hist"] = wandb.Histogram(freq_np)
+                log["eval/sparsity/feature_density_hist"] = wandb.Histogram(freq_np)
                 if alive.any():
-                    log["eval/log10_feature_density_hist"] = wandb.Histogram(
+                    log["eval/sparsity/log10_feature_density_hist"] = wandb.Histogram(
                         np.log10(freq_np[alive])
                     )
 
@@ -240,8 +241,8 @@ def train(cfg: TrainConfig) -> None:
             alive = freq_np > 0
             wandb.log(
                 {
-                    "feature_density_hist": wandb.Histogram(freq_np),
-                    "log10_feature_density_hist": wandb.Histogram(
+                    "sparsity/feature_density_hist": wandb.Histogram(freq_np),
+                    "sparsity/log10_feature_density_hist": wandb.Histogram(
                         freq_np[alive] if alive.any() else freq_np[:1]
                     ),
                 },
