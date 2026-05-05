@@ -45,7 +45,6 @@ def main() -> None:
             d_in=args.d_in,
             d_mid=args.d_mid,
             d_sae=args.d_sae,
-            aux_loss_coefficient=1 / 32,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
