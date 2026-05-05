@@ -62,7 +62,8 @@ def eval_sae(
 
         # Metrics computed in unscaled (model activation) space
         acts = collect_acts(model, seqs, hook_name, device, dtype)
-        sae_out, feat_acts, _ = sae(acts)
+        sae_out_scaled, feat_acts, _ = sae(acts * activation_scale)
+        sae_out = sae_out_scaled / activation_scale
 
         n = acts.shape[0]
         x64 = acts.double()
@@ -129,7 +130,7 @@ def eval_sae(
             shape = value.shape
             flat = value.reshape(-1, shape[-1]).to(dtype)
             # Scale input → SAE → unscale output, staying in model activation space
-            recon = sae.decode(sae.encode(flat)[0])
+            recon = sae.decode(sae.encode(flat * activation_scale)[0]) / activation_scale
             return recon.reshape(shape).to(value.dtype)
 
         ce_sae_list.append(
