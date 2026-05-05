@@ -16,41 +16,41 @@ from .utils import token_iter, collect_acts
 @dataclass
 class TrainConfig:
     # SAE architecture
-    d_in: int = 1152
-    d_mid: int = 4096
-    d_sae: int = 16384
-    bandwidth: float = 2.0
-    jumprelu_tanh_scale: float = 4.0
-    pre_act_loss_coefficient: float | None = 4.0
+    d_in: int
+    d_mid: int
+    d_sae: int
+    bandwidth: float
+    jumprelu_tanh_scale: float
+    pre_act_loss_coefficient: float | None
 
     # Model / data
-    model_name: str = "gemma-3-1b-pt"
-    hook_name: str = "blocks.6.hook_resid_post"
-    dataset_path: str = "Skylion007/openwebtext"
-    streaming: bool = True
-    context_size: int = 256
-    model_batch_size: int = 32  # prompts per model forward pass
+    model_name: str
+    hook_name: str
+    dataset_path: str
+    streaming: bool
+    context_size: int
+    model_batch_size: int
 
     # Training
-    lr: float = 2e-4
-    train_batch_size_tokens: int = 4096
-    training_tokens: int = 120_000 * 4096
-    l0_coefficient: float = 20.0
-    dead_neuron_window: int = 1000
-    n_batches_in_buffer: int = 32
+    lr: float
+    train_batch_size_tokens: int
+    training_tokens: int
+    l0_coefficient: float
+    dead_neuron_window: int
+    n_batches_in_buffer: int
 
     # Output
-    device: str = "cuda"
-    dtype: str = "bfloat16"
-    output_path: str = "saes/run"
+    device: str
+    dtype: str
+    output_path: str
 
     # Logging
-    wandb_project: str = "deep_sae"
-    wandb_run_name: str | None = None
-    wandb_log_frequency: int = 16  # training steps between metric logs
-    wandb_hist_frequency: int = 1000  # training steps between density histogram logs
-    eval_frequency: int = 16  # log steps between full evals (0 = disabled)
-    n_eval_batches: int = 20  # model_batch_size-sized batches per eval
+    wandb_project: str
+    wandb_run_name: str | None
+    wandb_log_frequency: int
+    wandb_hist_frequency: int
+    eval_frequency: int
+    n_eval_batches: int
 
 
 class ActivationBuffer:
