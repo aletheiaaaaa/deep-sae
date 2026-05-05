@@ -13,7 +13,7 @@ from sae_lens.saes.jumprelu_sae import JumpReLUSAEConfig
 class DeepBTKTrainingSAEConfig(BatchTopKTrainingSAEConfig):
     """Configuration for deep BatchTopK SAE training."""
 
-    d_mid: int  # type: ignore[assignment]
+    d_mid: int = 4096  # type: ignore[assignment]
 
     @override
     @classmethod
@@ -187,7 +187,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
 class DeepJumpReLUSAEConfig(JumpReLUSAEConfig):
     """Configuration class for a deep JumpReLU inference SAE."""
 
-    d_mid: int  # type: ignore[assignment]
+    d_mid: int = 4096  # type: ignore[assignment]
 
     @override
     @classmethod
