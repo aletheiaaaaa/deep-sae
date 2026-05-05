@@ -1,148 +1,277 @@
 from dataclasses import dataclass
+from typing import override
 import torch
 from torch import nn
 from torch.nn import functional as F
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-@dataclass
-class SAEConfig:
-    k_feat: int
-    k_aux: int
-    batches_to_dead: int
-    aux_coeff: float
+from sae_lens import register_sae_training_class
+from sae_lens.saes.sae import SAE, SAEConfig, TrainStepInput, TrainStepOutput
+from sae_lens.saes.batchtopk_sae import BatchTopKTrainingSAEConfig, BatchTopKTrainingSAE
+from sae_lens.saes.jumprelu_sae import JumpReLUSAEConfig
 
 
 @dataclass
-class Results:
-    loss: torch.Tensor
-    l2_loss: torch.Tensor
-    aux_loss: torch.Tensor
-    n_dead: int
+class DeepBTKTrainingSAEConfig(BatchTopKTrainingSAEConfig):
+    """Configuration for deep BatchTopK SAE training."""
+
+    d_mid: int  # type: ignore[assignment]
+
+    @override
+    @classmethod
+    def architecture(cls) -> str:
+        return "deep_batchtopk"
+
+    @override
+    def get_inference_config_class(self) -> type[SAEConfig]:
+        return DeepJumpReLUSAEConfig
 
 
-class DeepSAE(nn.Module):
-    def __init__(self, cfg: SAEConfig, n_blocks: int, layer_sizes: list[int]) -> None:
-        super().__init__()
+class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
+    """Deep BatchTopK SAE for training.
 
-        if len(layer_sizes) - 1 != n_blocks:
-            raise ValueError(
-                f"layer_sizes must have exactly n_blocks + 1 = {n_blocks + 1} elements, "
-                f"got {len(layer_sizes)}"
-            )
+    Uses intermediate hidden layers in both the encoder and decoder.
+    """
 
-        n = n_blocks
+    W_enc_mid: nn.Parameter
+    b_enc_mid: nn.Parameter
+    W_enc_full: nn.Parameter
+    b_enc_full: nn.Parameter
 
-        self.enc_W = nn.ParameterList()
-        self.enc_b = nn.ParameterList()
-        for i in range(n):
-            wt = (
-                nn.init.kaiming_uniform_(torch.empty(layer_sizes[i + 1], layer_sizes[i]))
-                .t()
-                .contiguous()
-            )
-            self.enc_W.append(nn.Parameter(wt))
-            self.enc_b.append(nn.Parameter(torch.zeros(layer_sizes[i + 1])))
+    W_dec_full: nn.Parameter
+    b_dec_full: nn.Parameter
+    W_dec_mid: nn.Parameter
+    b_dec_mid: nn.Parameter
 
-        self.dec_W = nn.ParameterList()
-        self.dec_b = nn.ParameterList()
-        for i in range(n):
-            self.dec_W.append(
-                nn.Parameter(torch.empty(layer_sizes[n - i], layer_sizes[n - i - 1]))
-            )
-            self.dec_b.append(nn.Parameter(torch.zeros(layer_sizes[n - i - 1])))
+    cfg: DeepBTKTrainingSAEConfig  # type: ignore[assignment]
 
-        for i in range(n):
-            self.dec_W[i].data[:] = self.enc_W[n - 1 - i].t().data
+    def __init__(self, cfg: DeepBTKTrainingSAEConfig, use_error_term: bool = False):
+        super().__init__(cfg, use_error_term)
 
-        self.batches_to_dead = cfg.batches_to_dead
-        self.k_feat = cfg.k_feat
-        self.k_aux = cfg.k_aux
-        self.aux_coeff = cfg.aux_coeff
-        self.n_blocks = n
+    @override
+    def initialize_weights(self) -> None:
+        super().initialize_weights()
 
-        self.register_buffer("n_inactive", torch.zeros(layer_sizes[-1]))
-
-    def _update_n_inactive(self, feat: torch.Tensor) -> None:
-        self.n_inactive += (feat.sum((0, 1)) == 0).float()
-        self.n_inactive[feat.sum((0, 1)) > 0] = 0
-
-    def _topk(self, x: torch.Tensor, k: int) -> torch.Tensor:
-        topk = torch.topk(x.flatten(), k * x.shape[0] * x.shape[1], dim=-1)
-        return (
-            torch.zeros_like(x.flatten())
-            .scatter(-1, topk.indices, topk.values)
-            .reshape(x.shape)
+        self.b_enc_mid = nn.Parameter(
+            torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
+        )
+        self.b_enc_full = nn.Parameter(
+            torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
         )
 
-    def _aux_loss(
+        self.b_dec_full = nn.Parameter(
+            torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
+        )
+        self.b_dec_mid = nn.Parameter(
+            torch.zeros(self.cfg.d_in, dtype=self.dtype, device=self.device)
+        )
+
+        w_dec_mid_data = torch.empty(
+            self.cfg.d_sae, self.cfg.d_mid, dtype=self.dtype, device=self.device
+        )
+        w_dec_full_data = torch.empty(
+            self.cfg.d_mid, self.cfg.d_in, dtype=self.dtype, device=self.device
+        )
+
+        self.W_dec_mid = nn.Parameter(w_dec_mid_data)
+        self.W_dec_full = nn.Parameter(w_dec_full_data)
+
+        self.W_enc_mid = nn.Parameter(self.W_dec_mid.data.T.clone().detach().contiguous())
+        self.W_enc_full = nn.Parameter(
+            self.W_dec_full.data.T.clone().detach().contiguous()
+        )
+
+    @override
+    def encode_with_hidden_pre(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        sae_in = self.process_sae_in(x)
+        hidden_pre = self.hook_sae_acts_pre(
+            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_dec_mid
+            + self.b_enc_mid
+        )
+
+        feature_acts = self.hook_sae_acts_post(self.activation_fn(hidden_pre))
+
+        return feature_acts, hidden_pre
+
+    @override
+    def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
+        sae_out_pre = (
+            F.relu(feature_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
+            + self.b_dec_full
+        )
+
+        sae_out_pre = self.hook_sae_recons(sae_out_pre)
+        return self.reshape_fn_out(sae_out_pre, self.d_head)
+
+    @override
+    def training_forward_pass(self, step_input: TrainStepInput) -> TrainStepOutput:
+        feature_acts, hidden_pre = self.encode_with_hidden_pre(step_input.sae_in)
+        sae_out = self.decode(feature_acts)
+
+        per_item_mse_loss = self.mse_loss_fn(sae_out, step_input.sae_in)
+        mse_loss = per_item_mse_loss.sum(dim=-1).mean()
+
+        aux_losses = self.calculate_aux_loss(
+            step_input=step_input,
+            feature_acts=feature_acts,
+            hidden_pre=hidden_pre,
+            sae_out=sae_out,
+        )
+
+        total_loss = mse_loss + sum(loss_value for loss_value in aux_losses.values())
+
+        losses = {"mse_loss": mse_loss, "aux_loss": aux_losses}
+
+        self.update_topk_threshold(feature_acts)
+
+        return TrainStepOutput(
+            sae_in=step_input.sae_in,
+            sae_out=sae_out,
+            feature_acts=feature_acts,
+            hidden_pre=hidden_pre,
+            loss=total_loss,
+            losses=losses,
+        )
+
+    @override
+    def calculate_aux_loss(
         self,
-        input: torch.Tensor,
-        recon: torch.Tensor,
-        feat: torch.Tensor,
+        step_input: TrainStepInput,
+        feature_acts: torch.Tensor,
+        hidden_pre: torch.Tensor,
+        sae_out: torch.Tensor,
+    ) -> dict[str, torch.Tensor]:
+        aux_loss = self.calculate_topk_aux_loss(
+            sae_in=step_input.sae_in,
+            sae_out=sae_out,
+            hidden_pre=hidden_pre,
+            dead_neuron_mask=step_input.dead_neuron_mask,
+        )
+        return {"recon_loss": aux_loss}
+
+    @override
+    def calculate_topk_aux_loss(
+        self,
+        sae_in: torch.Tensor,
+        sae_out: torch.Tensor,
+        hidden_pre: torch.Tensor,
+        dead_neuron_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        aux_loss = torch.tensor(0, dtype=torch.float32, device=device)
+        num_dead = int(dead_neuron_mask.sum())
 
-        dead_features = self.n_inactive > self.batches_to_dead
-        scale = min(dead_features.sum() / self.k_aux, 1.0)
-        if dead_features.sum() > 0:
-            residual = input - recon
-            topk_aux = torch.topk(
-                feat[:, :, dead_features],
-                min(self.k_aux, int(dead_features.sum().item())),
-                dim=-1,
-            )
-            acts_aux = torch.zeros_like(feat[:, :, dead_features]).scatter(
-                -1, topk_aux.indices, topk_aux.values
-            )
-            h = acts_aux
-            for i in range(self.n_blocks):
-                wt = self.dec_W[0][dead_features] if i == 0 else self.dec_W[i]
-                h = h @ wt
-                if i < self.n_blocks - 1:
-                    h = F.relu(h + self.dec_b[i])
-            aux_loss = self.aux_coeff * scale * (h - residual).pow(2).mean()
+        if dead_neuron_mask is None or num_dead == 0:
+            sae_out.new_tensor(0.0)
 
-        return aux_loss
+        residual = (sae_in - sae_out).detach()
+        k_aux = sae_in.shape[-1] // 2
+        scale = min(num_dead / k_aux, 1.0)
+        k_aux = min(k_aux, num_dead)
 
-    def _loss_dict(
-        self,
-        input: torch.Tensor,
-        recon: torch.Tensor,
-        feat: torch.Tensor,
-    ) -> Results:
-        l2_loss = (recon.float() - input.float()).pow(2).mean()
-        aux_loss = self._aux_loss(input, recon, feat)
-        loss = l2_loss + aux_loss
-
-        return Results(
-            loss=loss,
-            l2_loss=l2_loss,
-            aux_loss=aux_loss,
-            n_dead=int((self.n_inactive > self.batches_to_dead).sum().item()),
+        auxk_latents = torch.where(dead_neuron_mask[None], hidden_pre, -torch.inf)
+        auxk_topk = auxk_latents.topk(k_aux, sorted=False)
+        auxk_acts = torch.zeros_like(hidden_pre).scatter(
+            -1, auxk_topk.indices, auxk_topk.values
         )
 
-    def forward(self, x):
-        x = x.float()
-        input = x.clone().detach()
+        recons = (
+            F.relu(auxk_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
+            + self.b_dec_full
+        )
 
-        h = input
-        for i in range(self.n_blocks):
-            h = h @ self.enc_W[i] + self.enc_b[i]
-            if i < self.n_blocks - 1:
-                h = F.relu(h)
-        pre = h
-        feat = self._topk(F.relu(pre), self.k_feat)
+        auxk_loss = (recons - residual).pow(2).sum(dim=-1).mean()
 
-        h = feat
-        for i in range(self.n_blocks):
-            h = h @ self.dec_W[i] + self.dec_b[i]
-            if i < self.n_blocks - 1:
-                h = F.relu(h)
-        recon = h
+        return self.cfg.aux_loss_coefficient * scale * auxk_loss
 
-        with torch.no_grad():
-            self._update_n_inactive(feat)
 
-        return recon, self._loss_dict(input, recon, pre)
+@dataclass
+class DeepJumpReLUSAEConfig(JumpReLUSAEConfig):
+    """Configuration class for a deep JumpReLU inference SAE."""
+
+    d_mid: int  # type: ignore[assignment]
+
+    @override
+    @classmethod
+    def architecture(cls) -> str:
+        return "deep_jumprelu"
+
+
+class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
+    W_enc_mid: nn.Parameter
+    b_enc_mid: nn.Parameter
+    W_enc_full: nn.Parameter
+    b_enc_full: nn.Parameter
+
+    W_dec_full: nn.Parameter
+    b_dec_full: nn.Parameter
+    W_dec_mid: nn.Parameter
+    b_dec_mid: nn.Parameter
+
+    threshold: nn.Parameter
+
+    def __init__(self, cfg: DeepJumpReLUSAEConfig, use_error_term: bool = False):
+        super().__init__(cfg, use_error_term)
+
+    @override
+    def initialize_weights(self) -> None:
+        super().initialize_weights()
+
+        self.b_enc_mid = nn.Parameter(
+            torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
+        )
+        self.b_enc_full = nn.Parameter(
+            torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
+        )
+
+        self.b_dec_full = nn.Parameter(
+            torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
+        )
+        self.b_dec_mid = nn.Parameter(
+            torch.zeros(self.cfg.d_in, dtype=self.dtype, device=self.device)
+        )
+
+        w_dec_mid_data = torch.empty(
+            self.cfg.d_sae, self.cfg.d_mid, dtype=self.dtype, device=self.device
+        )
+        w_dec_full_data = torch.empty(
+            self.cfg.d_mid, self.cfg.d_in, dtype=self.dtype, device=self.device
+        )
+
+        self.threshold = nn.Parameter(
+            torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
+        )
+
+        self.W_dec_mid = nn.Parameter(w_dec_mid_data)
+        self.W_dec_full = nn.Parameter(w_dec_full_data)
+
+        self.W_enc_mid = nn.Parameter(self.W_dec_mid.data.T.clone().detach().contiguous())
+        self.W_enc_full = nn.Parameter(
+            self.W_dec_full.data.T.clone().detach().contiguous()
+        )
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        sae_in = self.process_sae_in(x)
+        hidden_pre = self.hook_sae_acts_pre(
+            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_dec_mid
+            + self.b_enc_mid
+        )
+
+        feature_acts = self.activation_fn(hidden_pre)
+        jumprelu_mask = (hidden_pre > self.threshold).to(feature_acts.dtype)
+
+        return self.hook_sae_acts_post(feature_acts * jumprelu_mask)
+
+    def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
+        sae_out_pre = (
+            F.relu(feature_acts @ self.W_dec_mid + self.b_dec_mid) @ self.W_dec_full
+            + self.b_dec_full
+        )
+
+        sae_out_pre = self.hook_sae_recons(sae_out_pre)
+        return self.reshape_fn_out(sae_out_pre, self.d_head)
+
+
+register_sae_training_class(
+    "deep_batchtopk",
+    DeepBTKTrainingSAE,
+    DeepBTKTrainingSAEConfig,
+)

@@ -1,7 +1,5 @@
-datasets==4.5.0
 huggingface_hub==0.36.2
-transformers==4.51.1
-nnsight==0.5.12
+sae_lens==6.39.0
 torch==2.7.0
 tqdm==4.67.3
 wandb==0.26.0
