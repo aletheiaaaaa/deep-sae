@@ -26,7 +26,7 @@ def main() -> None:
     )
 
     # Training
-    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
     parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
@@ -45,6 +45,7 @@ def main() -> None:
             d_in=args.d_in,
             d_mid=args.d_mid,
             d_sae=args.d_sae,
+            aux_loss_coefficient=1 / 32,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
