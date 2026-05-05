@@ -122,6 +122,8 @@ def train(cfg: TrainConfig) -> None:
     steps_since_fired = torch.zeros(cfg.d_sae, dtype=torch.long, device=device)
     hist_fire_counts = torch.zeros(cfg.d_sae, dtype=torch.long, device=device)
 
+    activation_scale = 1.0
+
     def _refill() -> None:
         seqs: list[list[int]] = []
         for _ in range(cfg.model_batch_size):
@@ -131,11 +133,18 @@ def train(cfg: TrainConfig) -> None:
                 break
         if seqs:
             acts = collect_acts(model, seqs, cfg.hook_name, device, dtype)
-            buffer.extend(acts)
+            buffer.extend(acts * activation_scale)
 
+    # Prime buffer, compute scale so E[||x||] = sqrt(d_in), then rescale
+    _refill()
+    if buffer.data is not None:
+        with torch.no_grad():
+            activation_scale = float((cfg.d_in**0.5) / buffer.data.norm(dim=-1).mean())
+            buffer.data.mul_(activation_scale)
+
+    wandb.log({"details/activation_scale": activation_scale}, step=0)
     Path(cfg.output_path).mkdir(parents=True, exist_ok=True)
 
-    _refill()
     for step in tqdm(range(1, total_steps + 1), desc="Training"):
         while len(buffer) < cfg.train_batch_size_tokens:
             _refill()
@@ -213,6 +222,7 @@ def train(cfg: TrainConfig) -> None:
                     cfg.model_batch_size,
                     device,
                     dtype,
+                    activation_scale=activation_scale,
                 )
                 density = metrics.pop("_feature_density")
                 freq_np = np.array(density, dtype="float32")
