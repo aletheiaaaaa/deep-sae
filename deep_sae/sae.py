@@ -12,7 +12,6 @@ from sae_lens.saes.jumprelu_sae import (
     JumpReLUSAEConfig,
     JumpReLUTrainingSAEConfig,
     JumpReLUTrainingSAE,
-    calculate_pre_act_loss,
 )
 
 
@@ -24,19 +23,6 @@ def act_times_W_dec(
     if rescale_acts_by_decoder_norm:
         feature_acts = feature_acts * (1 / W_dec.norm(dim=-1))
     return feature_acts @ W_dec
-
-
-@dataclass
-class DeepJumpReLUSAEConfig(JumpReLUSAEConfig):
-    """Configuration class for a deep JumpReLU inference SAE."""
-
-    d_mid: int = 4096  # type: ignore[assignment]
-    rescale_acts_by_decoder_norm: bool = False
-
-    @override
-    @classmethod
-    def architecture(cls) -> str:
-        return "deep_jumprelu"
 
 
 @dataclass
@@ -168,15 +154,6 @@ class DeepJumpReLUTrainingSAE(JumpReLUTrainingSAE):
 
         losses: dict[str, torch.Tensor] = {"l0_loss": l0_loss}
 
-        if self.cfg.pre_act_loss_coefficient is not None:
-            losses["pre_act_loss"] = calculate_pre_act_loss(
-                self.cfg.pre_act_loss_coefficient,
-                threshold,
-                hidden_pre,
-                step_input.dead_neuron_mask,
-                W_dec_norm,
-            )
-
         return losses
 
     def normalize_decoders(self) -> None:
@@ -196,6 +173,100 @@ class DeepJumpReLUTrainingSAE(JumpReLUTrainingSAE):
     @override
     def log_histograms(self) -> dict[str, NDArray[Any]]:
         return {}
+
+
+@dataclass
+class DeepJumpReLUSAEConfig(JumpReLUSAEConfig):
+    """Configuration class for a deep JumpReLU inference SAE."""
+
+    d_mid: int = 4096  # type: ignore[assignment]
+    rescale_acts_by_decoder_norm: bool = False
+
+    @override
+    @classmethod
+    def architecture(cls) -> str:
+        return "deep_jumprelu"
+
+
+class DeepJumpReLUSAE(SAE[DeepJumpReLUSAEConfig]):
+    W_enc_mid: nn.Parameter
+    b_enc_mid: nn.Parameter
+    W_enc_full: nn.Parameter
+    b_enc_full: nn.Parameter
+
+    W_dec_full: nn.Parameter
+    b_dec_full: nn.Parameter
+    W_dec_mid: nn.Parameter
+    b_dec_mid: nn.Parameter
+
+    threshold: nn.Parameter
+
+    def __init__(self, cfg: DeepJumpReLUSAEConfig, use_error_term: bool = False):
+        super().__init__(cfg, use_error_term)
+
+    @override
+    def initialize_weights(self) -> None:
+        super().initialize_weights()
+
+        self.b_enc_full = nn.Parameter(
+            torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
+        )
+        self.b_enc_mid = nn.Parameter(
+            torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
+        )
+
+        self.b_dec_mid = nn.Parameter(
+            torch.zeros(self.cfg.d_mid, dtype=self.dtype, device=self.device)
+        )
+        self.b_dec_full = nn.Parameter(
+            torch.zeros(self.cfg.d_in, dtype=self.dtype, device=self.device)
+        )
+
+        w_dec_mid_data = torch.empty(
+            self.cfg.d_sae, self.cfg.d_mid, dtype=self.dtype, device=self.device
+        )
+        nn.init.kaiming_uniform_(w_dec_mid_data)
+        w_dec_full_data = torch.empty(
+            self.cfg.d_mid, self.cfg.d_in, dtype=self.dtype, device=self.device
+        )
+        nn.init.kaiming_uniform_(w_dec_full_data, mode="fan_out")
+
+        self.threshold = nn.Parameter(
+            torch.zeros(self.cfg.d_sae, dtype=self.dtype, device=self.device)
+        )
+
+        self.W_dec_mid = nn.Parameter(w_dec_mid_data)
+        self.W_dec_full = nn.Parameter(w_dec_full_data)
+
+        self.W_enc_mid = nn.Parameter(self.W_dec_mid.data.T.clone().detach().contiguous())
+        self.W_enc_full = nn.Parameter(
+            self.W_dec_full.data.T.clone().detach().contiguous()
+        )
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        sae_in = self.process_sae_in(x)
+        hidden_pre = self.hook_sae_acts_pre(
+            F.relu(sae_in @ self.W_enc_full + self.b_enc_full) @ self.W_enc_mid
+            + self.b_enc_mid
+        )
+        feature_acts = self.activation_fn(hidden_pre)
+        jumprelu_mask = (hidden_pre > self.threshold).to(feature_acts.dtype)
+        return self.hook_sae_acts_post(feature_acts * jumprelu_mask)
+
+    def decode(self, feature_acts: torch.Tensor) -> torch.Tensor:
+        mid = act_times_W_dec(
+            feature_acts, self.W_dec_mid, self.cfg.rescale_acts_by_decoder_norm
+        )
+        sae_out_pre = (
+            act_times_W_dec(
+                F.relu(mid + self.b_dec_mid),
+                self.W_dec_full,
+                self.cfg.rescale_acts_by_decoder_norm,
+            )
+            + self.b_dec_full
+        )
+        sae_out_pre = self.hook_sae_recons(sae_out_pre)
+        return self.reshape_fn_out(sae_out_pre, self.d_head)
 
 
 register_sae_training_class(
