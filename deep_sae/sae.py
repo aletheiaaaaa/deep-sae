@@ -129,6 +129,7 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             losses.update(aux_losses)
 
         self.update_topk_threshold(feature_acts)
+        self.normalize_decoders()
 
         return TrainStepOutput(
             sae_in=step_input.sae_in,
