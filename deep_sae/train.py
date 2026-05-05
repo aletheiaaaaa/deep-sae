@@ -19,7 +19,7 @@ class TrainConfig:
     d_in: int = 1152
     d_mid: int = 4096
     d_sae: int = 16384
-    bandwidth: float = 0.001
+    bandwidth: float = 2.0
     jumprelu_tanh_scale: float = 4.0
     pre_act_loss_coefficient: float | None = 3e-6
 
@@ -47,10 +47,10 @@ class TrainConfig:
     # Logging
     wandb_project: str = "deep_sae"
     wandb_run_name: str | None = None
-    wandb_log_frequency: int = 16       # training steps between metric logs
-    wandb_hist_frequency: int = 1000    # training steps between density histogram logs
-    eval_frequency: int = 0             # log steps between full evals (0 = disabled)
-    n_eval_batches: int = 20            # model_batch_size-sized batches per eval
+    wandb_log_frequency: int = 16  # training steps between metric logs
+    wandb_hist_frequency: int = 1000  # training steps between density histogram logs
+    eval_frequency: int = 0  # log steps between full evals (0 = disabled)
+    n_eval_batches: int = 20  # model_batch_size-sized batches per eval
 
 
 class ActivationBuffer:
@@ -90,7 +90,9 @@ def train(cfg: TrainConfig) -> None:
 
     eval_tok_iter = None
     if cfg.eval_frequency > 0:
-        eval_dataset = load_dataset(cfg.dataset_path, split="train", streaming=cfg.streaming)
+        eval_dataset = load_dataset(
+            cfg.dataset_path, split="train", streaming=cfg.streaming
+        )
         eval_tok_iter = token_iter(eval_dataset, tokenizer, cfg.context_size)
 
     sae_cfg = DeepJumpReLUSAEConfig(
@@ -139,9 +141,16 @@ def train(cfg: TrainConfig) -> None:
     if buffer.data is not None:
         with torch.no_grad():
             # Scale inputs so E[||x||] = sqrt(d_in), per Jan-2025 update
-            activation_scale = float((cfg.d_in ** 0.5) / buffer.data.norm(dim=-1).mean())
+            activation_scale = float((cfg.d_in**0.5) / buffer.data.norm(dim=-1).mean())
             buffer.data.mul_(activation_scale)
-            sae.b_dec.data = buffer.data.mean(0)
+
+            # b_d stays at zeros per article; initialize b_enc_mid so each feature
+            # activates at rate 10000/d_sae on this data subset
+            target_rate = 10000.0 / cfg.d_sae
+            h1 = F.relu(buffer.data @ sae.W_enc_full + sae.b_enc_full)
+            hidden_pre_init = (h1 @ sae.W_enc_mid).float()
+            quantile_vals = torch.quantile(hidden_pre_init, 1.0 - target_rate, dim=0)
+            sae.b_enc_mid.data = (sae.log_threshold.exp() - quantile_vals).to(dtype)
 
     wandb.log({"details/activation_scale": activation_scale}, step=0)
     Path(cfg.output_path).mkdir(parents=True, exist_ok=True)
@@ -156,14 +165,12 @@ def train(cfg: TrainConfig) -> None:
         # Linear l0 warmup over entire training run
         current_l0_coef = cfg.l0_coefficient * step / total_steps
 
-        sae_out, feature_acts, hidden_pre = sae(batch)
+        sae_out, feature_acts, _ = sae(batch)
         losses = sae.compute_loss(
             batch,
             sae_out,
             feature_acts,
-            hidden_pre,
             l0_coefficient=current_l0_coef,
-            dead_neuron_mask=dead_neuron_mask,
         )
 
         optimizer.zero_grad()
@@ -171,7 +178,6 @@ def train(cfg: TrainConfig) -> None:
         grad_norm = torch.nn.utils.clip_grad_norm_(sae.parameters(), 1.0).item()
         optimizer.step()
         scheduler.step()
-        sae.normalize_decoders()
 
         fired_mask = feature_acts > 0
         fired = fired_mask.any(dim=0)
@@ -185,10 +191,14 @@ def train(cfg: TrainConfig) -> None:
                 residuals = sae_out - batch
                 batch_mean = batch.mean(0)
                 total_var = (batch - batch_mean).pow(2).mean(0).clamp(min=1e-12)
-                explained_variance = (1.0 - residuals.pow(2).mean(0) / total_var).mean().item()
+                explained_variance = (
+                    (1.0 - residuals.pow(2).mean(0) / total_var).mean().item()
+                )
                 l2_ratio = (
-                    sae_out.norm(dim=-1) / batch.norm(dim=-1).clamp(min=1e-8)
-                ).mean().item()
+                    (sae_out.norm(dim=-1) / batch.norm(dim=-1).clamp(min=1e-8))
+                    .mean()
+                    .item()
+                )
                 cos_sim = F.cosine_similarity(sae_out, batch, dim=-1).mean().item()
                 frac_alive = (steps_since_fired == 0).float().mean().item()
 
@@ -215,9 +225,15 @@ def train(cfg: TrainConfig) -> None:
             if cfg.eval_frequency > 0 and log_step % cfg.eval_frequency == 0:
                 assert eval_tok_iter is not None
                 metrics = eval_sae(
-                    model, sae, sae_cfg, eval_tok_iter,
-                    cfg.n_eval_batches, cfg.hook_name,
-                    cfg.model_batch_size, device, dtype,
+                    model,
+                    sae,
+                    sae_cfg,
+                    eval_tok_iter,
+                    cfg.n_eval_batches,
+                    cfg.hook_name,
+                    cfg.model_batch_size,
+                    device,
+                    dtype,
                     activation_scale=activation_scale,
                 )
                 density = metrics.pop("_feature_density")
