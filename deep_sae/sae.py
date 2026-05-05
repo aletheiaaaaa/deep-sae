@@ -122,7 +122,9 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
 
         total_loss = mse_loss + sum(loss_value for loss_value in aux_losses.values())
 
-        losses = {"mse_loss": mse_loss, "aux_loss": aux_losses}
+        losses = {"mse_loss": mse_loss}
+        if isinstance(aux_losses, dict):
+            losses.update(aux_losses)
 
         self.update_topk_threshold(feature_acts)
 
