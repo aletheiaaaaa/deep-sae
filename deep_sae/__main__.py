@@ -37,7 +37,7 @@ def main() -> None:
     parser.add_argument("--decay-coefficient", type=float, default=1e-3)
     parser.add_argument(
         "--no-rescale",
-        dest="rescale-acts-by-decoder-norm",
+        dest="rescale_acts_by_decoder_norm",
         action="store_false",
         default=True,
     )
