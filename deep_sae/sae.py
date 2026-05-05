@@ -25,7 +25,8 @@ class DeepBTKTrainingSAEConfig(BatchTopKTrainingSAEConfig):
     """Configuration for deep BatchTopK SAE training."""
 
     d_mid: int = 4096  # type: ignore[assignment]
-    rescale_acts_by_decoder_norm: bool = False
+    rescale_acts_by_decoder_norm: bool = True
+    decay_coefficient: float = 1e-3
 
     @override
     @classmethod
@@ -170,7 +171,10 @@ class DeepBTKTrainingSAE(BatchTopKTrainingSAE):
             hidden_pre=hidden_pre,
             dead_neuron_mask=step_input.dead_neuron_mask,
         )
-        return {"aux_loss": aux_loss}
+
+        decay_loss = self.cfg.decay_coefficient * feature_acts.pow(2).mean()
+
+        return {"aux_loss": aux_loss, "decay_loss": decay_loss}
 
     @override
     def calculate_topk_aux_loss(

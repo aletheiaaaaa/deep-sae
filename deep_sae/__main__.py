@@ -26,12 +26,20 @@ def main() -> None:
     )
 
     # Training
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
-    parser.add_argument("--training-tokens", type=int, default=120000 * 4096)
+    parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
+    parser.add_argument("--aux-loss-coefficient", type=float, default=1 / 32)
+    parser.add_argument("--decay-coefficient", type=float, default=1e-3)
+    parser.add_argument(
+        "--no-rescale",
+        dest="rescale-acts-by-decoder-norm",
+        action="store_false",
+        default=True,
     )
 
     # Output
@@ -45,7 +53,9 @@ def main() -> None:
             d_in=args.d_in,
             d_mid=args.d_mid,
             d_sae=args.d_sae,
-            aux_loss_coefficient=1 / 32,
+            aux_loss_coefficient=args.aux_loss_coefficient,
+            rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
+            decay_coefficient=args.decay_coefficient,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
