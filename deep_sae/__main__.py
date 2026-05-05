@@ -1,6 +1,10 @@
 import argparse
 import torch
-from sae_lens import LanguageModelSAERunnerConfig, LanguageModelSAETrainingRunner
+from sae_lens import (
+    LanguageModelSAERunnerConfig,
+    LanguageModelSAETrainingRunner,
+    LoggingConfig,
+)
 from .sae import DeepBTKTrainingSAEConfig
 
 
@@ -17,14 +21,18 @@ def main() -> None:
     parser.add_argument("--model-name", type=str, default="gemma-3-1b-pt")
     parser.add_argument("--hook-name", type=str, default="blocks.6.hook_resid_post")
     parser.add_argument("--dataset-path", type=str, default="Skylion007/openwebtext")
-    parser.add_argument("--no-streaming", dest="streaming", action="store_false", default=True)
+    parser.add_argument(
+        "--no-streaming", dest="streaming", action="store_false", default=True
+    )
 
     # Training
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
     parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
 
     # Output
     parser.add_argument("--output-path", type=str, default="saes/saelens_run_1")
@@ -47,6 +55,12 @@ def main() -> None:
         context_size=args.context_size,
         training_tokens=args.training_tokens,
         device=args.device,
+        logger=LoggingConfig(
+            log_to_wandb=True,
+            wandb_project="deep_sae",
+            wandb_log_frequency=16,
+            eval_every_n_wandb_logs=64,
+        ),
     )
 
     sae = LanguageModelSAETrainingRunner(cfg).run()
