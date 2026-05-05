@@ -12,10 +12,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train a deep BatchTopK SAE")
 
     # SAE architecture
-    parser.add_argument("--k", type=int, default=128)
+    parser.add_argument("--k", type=int, default=16)
     parser.add_argument("--d-in", type=int, default=1152)
     parser.add_argument("--d-mid", type=int, default=4096)
-    parser.add_argument("--d-sae", type=int, default=32768)
+    parser.add_argument("--d-sae", type=int, default=16384)
 
     # Model / data
     parser.add_argument("--model-name", type=str, default="gemma-3-1b-pt")
@@ -29,13 +29,13 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
-    parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
+    parser.add_argument("--training-tokens", type=int, default=120000 * 4096)
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
 
     # Output
-    parser.add_argument("--output-path", type=str, default="saes/saelens_run_2")
+    parser.add_argument("--output-path", type=str, default="saes/saelens_run_1")
 
     args = parser.parse_args()
 
@@ -45,7 +45,7 @@ def main() -> None:
             d_in=args.d_in,
             d_mid=args.d_mid,
             d_sae=args.d_sae,
-            aux_loss_coefficient=1 / 8,
+            aux_loss_coefficient=1 / 32,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
