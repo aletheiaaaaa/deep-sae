@@ -26,7 +26,7 @@ def main() -> None:
     )
 
     # Training
-    parser.add_argument("--lr", type=float, default=5e-5)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
     parser.add_argument("--context-size", type=int, default=256)
     parser.add_argument("--training-tokens", type=int, default=60000 * 4096)
@@ -39,12 +39,6 @@ def main() -> None:
         "--no-rescale",
         dest="rescale_acts_by_decoder_norm",
         action="store_false",
-        default=True,
-    )
-    parser.add_argument(
-        "--normalize-activations",
-        dest="normalize_activations",
-        action="store_true",
         default=True,
     )
 
@@ -62,7 +56,6 @@ def main() -> None:
             aux_loss_coefficient=args.aux_loss_coefficient,
             rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
             decay_coefficient=args.decay_coefficient,
-            normalize_activations=args.normalize_activations,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
