@@ -25,6 +25,7 @@ def eval_sae(
     model_batch_size: int,
     device: str,
     dtype: torch.dtype,
+    activation_scale: float,
 ) -> dict:
     """
     Compute SAELens-style evaluation metrics for a live model + SAE.
