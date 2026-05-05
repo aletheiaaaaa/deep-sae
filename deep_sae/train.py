@@ -146,7 +146,7 @@ def train(cfg: TrainConfig) -> None:
     Path(cfg.output_path).mkdir(parents=True, exist_ok=True)
 
     for step in tqdm(range(1, total_steps + 1), desc="Training"):
-        if len(buffer) < cfg.train_batch_size_tokens:
+        while len(buffer) < cfg.train_batch_size_tokens:
             _refill()
 
         batch = buffer.sample(cfg.train_batch_size_tokens)
