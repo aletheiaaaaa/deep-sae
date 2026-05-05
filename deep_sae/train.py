@@ -41,7 +41,7 @@ class TrainConfig:
 
     # Output
     device: str = "cuda"
-    dtype: str = "float16"
+    dtype: str = "bfloat16"
     output_path: str = "saes/run"
 
     # Logging
@@ -177,19 +177,21 @@ def train(cfg: TrainConfig) -> None:
 
         if step % cfg.wandb_log_frequency == 0:
             with torch.no_grad():
+                batch_f = batch.float()
+                sae_out_f = sae_out.float()
                 l0 = fired_mask.float().sum(dim=-1).mean().item()
-                residuals = sae_out - batch
-                batch_mean = batch.mean(0)
-                total_var = (batch - batch_mean).pow(2).mean(0).clamp(min=1e-12)
+                residuals = sae_out_f - batch_f
+                batch_mean = batch_f.mean(0)
+                total_var = (batch_f - batch_mean).pow(2).mean(0).clamp(min=1e-12)
                 explained_variance = (
                     (1.0 - residuals.pow(2).mean(0) / total_var).mean().item()
                 )
                 l2_ratio = (
-                    (sae_out.norm(dim=-1) / batch.norm(dim=-1).clamp(min=1e-8))
+                    (sae_out_f.norm(dim=-1) / batch_f.norm(dim=-1).clamp(min=1e-8))
                     .mean()
                     .item()
                 )
-                cos_sim = F.cosine_similarity(sae_out, batch, dim=-1).mean().item()
+                cos_sim = F.cosine_similarity(sae_out_f, batch_f, dim=-1).mean().item()
 
             log: dict = {
                 "losses/total": losses["loss"].item(),
