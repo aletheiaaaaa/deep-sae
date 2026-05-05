@@ -5,14 +5,13 @@ from sae_lens import (
     LanguageModelSAETrainingRunner,
     LoggingConfig,
 )
-from .sae import DeepBTKTrainingSAEConfig
+from .sae import DeepJumpReLUTrainingSAEConfig
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train a deep BatchTopK SAE")
+    parser = argparse.ArgumentParser(description="Train a deep JumpReLU SAE")
 
     # SAE architecture
-    parser.add_argument("--k", type=int, default=16)
     parser.add_argument("--d-in", type=int, default=1152)
     parser.add_argument("--d-mid", type=int, default=4096)
     parser.add_argument("--d-sae", type=int, default=16384)
@@ -33,8 +32,7 @@ def main() -> None:
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
-    parser.add_argument("--aux-loss-coefficient", type=float, default=1 / 32)
-    parser.add_argument("--decay-coefficient", type=float, default=1e-3)
+    parser.add_argument("--l0-coefficient", type=float, default=1.0)
     parser.add_argument(
         "--no-rescale",
         dest="rescale_acts_by_decoder_norm",
@@ -48,14 +46,12 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = LanguageModelSAERunnerConfig(
-        sae=DeepBTKTrainingSAEConfig(
-            k=args.k,
+        sae=DeepJumpReLUTrainingSAEConfig(
             d_in=args.d_in,
             d_mid=args.d_mid,
             d_sae=args.d_sae,
-            aux_loss_coefficient=args.aux_loss_coefficient,
+            l0_coefficient=args.l0_coefficient,
             rescale_acts_by_decoder_norm=args.rescale_acts_by_decoder_norm,
-            decay_coefficient=args.decay_coefficient,
         ),
         model_name=args.model_name,
         hook_name=args.hook_name,
