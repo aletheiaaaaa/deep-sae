@@ -99,7 +99,7 @@ class DeepJumpReLUSAE(nn.Module):
         self.W_enc_full = nn.Parameter(
             self.W_dec_full.data.T.clone().contiguous() * (cfg.d_mid / cfg.d_in)
         )
-        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), math.log(0.1), **kw))
+        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), 0.1, **kw))
 
     def encode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         threshold = self.log_threshold.exp()
