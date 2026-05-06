@@ -88,9 +88,8 @@ def eval_sae(
         n_tokens += n
 
     mean_x = sum_x / n_tokens
-    E_x_sq = sum_x_sq / n_tokens
-    total_var = (E_x_sq - mean_x.pow(2)).clamp(min=1e-12)
-    explained_variance = (1.0 - (sum_res_sq / n_tokens) / total_var).mean().item()
+    total_var_sum = (sum_x_sq - n_tokens * mean_x.pow(2)).sum()
+    explained_variance = (1.0 - sum_res_sq.sum() / total_var_sum).item()
     mse = (sum_res_sq / n_tokens).mean().item()
     l0 = l0_sum / n_tokens
     l1 = l1_sum / n_tokens

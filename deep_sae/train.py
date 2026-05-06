@@ -183,10 +183,9 @@ def train(cfg: TrainConfig) -> None:
                 sae_out_f = sae_out.float()
                 l0 = fired_mask.float().sum(dim=-1).mean().item()
                 residuals = sae_out_f - batch_f
-                total_var = (batch_f.pow(2).mean(0) - batch_f.mean(0).pow(2)).clamp(min=1e-12)
-                explained_variance = (
-                    (1.0 - residuals.pow(2).mean(0) / total_var).mean().item()
-                )
+                per_token_l2 = residuals.pow(2).sum(-1)
+                total_var = (batch_f - batch_f.mean(0)).pow(2).sum(-1)
+                explained_variance = (1.0 - per_token_l2.mean() / total_var.mean()).item()
                 l2_ratio = (
                     (sae_out_f.norm(dim=-1) / batch_f.norm(dim=-1).clamp(min=1e-8))
                     .mean()
@@ -225,7 +224,7 @@ def train(cfg: TrainConfig) -> None:
                     cfg.model_batch_size,
                     device,
                     dtype,
-                    activation_scale=activation_scale,
+                    activation_scale,
                 )
                 density = metrics.pop("_feature_density")
                 freq_np = np.array(density, dtype="float32")
