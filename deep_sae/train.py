@@ -183,8 +183,7 @@ def train(cfg: TrainConfig) -> None:
                 sae_out_f = sae_out.float()
                 l0 = fired_mask.float().sum(dim=-1).mean().item()
                 residuals = sae_out_f - batch_f
-                batch_mean = batch_f.mean(0)
-                total_var = (batch_f - batch_mean).pow(2).mean(0).clamp(min=1e-12)
+                total_var = (batch_f.pow(2).mean(0) - batch_f.mean(0).pow(2)).clamp(min=1e-12)
                 explained_variance = (
                     (1.0 - residuals.pow(2).mean(0) / total_var).mean().item()
                 )

@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument("--train-batch-size-tokens", type=int, default=32768)
     parser.add_argument("--training-tokens", type=int, default=15_000 * 32768)
     parser.add_argument("--l0-coefficient", type=float, default=20.0)
-    parser.add_argument("--pre-act-loss-coefficient", type=float, default=3e-6)
+    parser.add_argument("--pre-act-loss-coefficient", type=float, default=1e-5)
     parser.add_argument("--dead-neuron-window", type=int, default=125)
     parser.add_argument("--n-batches-in-buffer", type=int, default=32)
     parser.add_argument(
