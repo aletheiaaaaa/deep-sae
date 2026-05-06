@@ -21,11 +21,11 @@ def main() -> None:
     parser.add_argument("--context-size", type=int, default=128)
     parser.add_argument("--model-batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument("--train-batch-size-tokens", type=int, default=32768)
-    parser.add_argument("--training-tokens", type=int, default=15_000 * 32768)
+    parser.add_argument("--train-batch-size-tokens", type=int, default=4096)
+    parser.add_argument("--training-tokens", type=int, default=120_000 * 4096)
     parser.add_argument("--l0-coefficient", type=float, default=20.0)
     parser.add_argument("--pre-act-loss-coefficient", type=float, default=1e-5)
-    parser.add_argument("--dead-neuron-window", type=int, default=125)
+    parser.add_argument("--dead-neuron-window", type=int, default=1000)
     parser.add_argument("--n-batches-in-buffer", type=int, default=32)
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
