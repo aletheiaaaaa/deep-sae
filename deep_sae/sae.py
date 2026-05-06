@@ -27,11 +27,13 @@ class JumpReLU(torch.autograd.Function):
     def backward(ctx: Any, grad_output: torch.Tensor) -> tuple:
         x, threshold = ctx.saved_tensors
         bandwidth = ctx.bandwidth
+        # x_grad: Heaviside (zero for inactive features, per article)
         x_grad = grad_output * (x > threshold).to(grad_output)
+        # threshold_grad: STE for log_threshold via chain rule through .exp()
+        # PyTorch multiplies this by exp(log_threshold) when backpropping through .exp(),
+        # giving the article's -exp(t)/ε * rect(...) gradient w.r.t. t
         threshold_grad = (
-            -(threshold / bandwidth)
-            * _rectangle((x - threshold) / bandwidth)
-            * grad_output
+            -(1.0 / bandwidth) * _rectangle((x - threshold) / bandwidth) * grad_output
         ).sum(0)
         return x_grad, threshold_grad, None
 
