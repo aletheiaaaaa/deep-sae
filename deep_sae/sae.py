@@ -87,10 +87,9 @@ class DeepJumpReLUSAE(nn.Module):
         self.b_enc_mid = nn.Parameter(torch.zeros(cfg.d_sae, **kw))
         self.b_dec_mid = nn.Parameter(torch.zeros(cfg.d_mid, **kw))
 
-        w_dec_mid = torch.empty(cfg.d_sae, cfg.d_mid, **kw)
-        nn.init.kaiming_uniform_(w_dec_mid, mode="fan_out")
-        w_dec_full = torch.empty(cfg.d_mid, cfg.d_in, **kw)
-        nn.init.kaiming_uniform_(w_dec_full, mode="fan_out")
+        bound = 1.0 / math.sqrt(cfg.d_in)
+        w_dec_mid = torch.empty(cfg.d_sae, cfg.d_mid, **kw).uniform_(-bound, bound)
+        w_dec_full = torch.empty(cfg.d_mid, cfg.d_in, **kw).uniform_(-bound, bound)
 
         self.W_dec_mid = nn.Parameter(w_dec_mid)
         self.W_dec_full = nn.Parameter(w_dec_full)
@@ -100,7 +99,7 @@ class DeepJumpReLUSAE(nn.Module):
         self.W_enc_full = nn.Parameter(
             self.W_dec_full.data.T.clone().contiguous() * (cfg.d_mid / cfg.d_in)
         )
-        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), math.log(0.01), **kw))
+        self.log_threshold = nn.Parameter(torch.full((cfg.d_sae,), math.log(0.1), **kw))
 
     def encode(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         threshold = self.log_threshold.exp()
