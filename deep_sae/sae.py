@@ -87,9 +87,12 @@ class DeepJumpReLUSAE(nn.Module):
         self.b_enc_mid = nn.Parameter(torch.zeros(cfg.d_sae, **kw))
         self.b_dec_mid = nn.Parameter(torch.zeros(cfg.d_mid, **kw))
 
-        bound = 1.0 / math.sqrt(cfg.d_in)
-        w_dec_mid = torch.empty(cfg.d_sae, cfg.d_mid, **kw).uniform_(-bound, bound)
-        w_dec_full = torch.empty(cfg.d_mid, cfg.d_in, **kw).uniform_(-bound, bound)
+        w_dec_mid = torch.empty(cfg.d_sae, cfg.d_mid, **kw).uniform_(
+            -1 / math.sqrt(cfg.d_sae), 1 / math.sqrt(cfg.d_sae)
+        )
+        w_dec_full = torch.empty(cfg.d_mid, cfg.d_in, **kw).uniform_(
+            -1 / math.sqrt(cfg.d_mid), 1 / math.sqrt(cfg.d_mid)
+        )
 
         self.W_dec_mid = nn.Parameter(w_dec_mid)
         self.W_dec_full = nn.Parameter(w_dec_full)
