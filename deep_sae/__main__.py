@@ -34,12 +34,12 @@ def main() -> None:
     parser.add_argument("--output-path", type=str, default="saes/run")
     parser.add_argument("--wandb-project", type=str, default="deep_sae")
     parser.add_argument("--run-name", type=str, default=None, dest="wandb_run_name")
-    parser.add_argument("--wandb-log-frequency", type=int, default=2)
-    parser.add_argument("--wandb-hist-frequency", type=int, default=8)
+    parser.add_argument("--wandb-log-frequency", type=int, default=16)
+    parser.add_argument("--wandb-hist-frequency", type=int, default=64)
     parser.add_argument(
         "--eval-frequency",
         type=int,
-        default=8,
+        default=64,
         help="Run full eval every N logging steps (0 = disabled)",
     )
     parser.add_argument(
